@@ -1,12 +1,12 @@
 [package]
-name = "omerta_presale"
+name = "omerta_solana_spl"
 version = "0.1.0"
 description = "Created with Anchor"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "omerta_presale"
+name = "omerta_solana_spl"
 
 [features]
 default = []

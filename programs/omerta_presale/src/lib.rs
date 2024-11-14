@@ -68,23 +68,31 @@ pub mod omerta_presale {
     }
 
     pub fn claim_tokens(ctx: Context<ClaimTokens>) -> Result<()> {
-        let investment_data = &ctx.accounts.data;
+        // let investment_data = &ctx.accounts.data;
         let presale_data = &ctx.accounts.presale;
 
         // Ensure the presale has ended before allowing token claims
         let clock = Clock::get()?;
-        require!(clock.unix_timestamp > presale_data.end_time, CustomError::PresaleNotLive);
+        // require!(clock.unix_timestamp > presale_data.end_time, CustomError::PresaleNotLive);
 
-        let tokens_to_claim = investment_data.number_of_tokens;
+        let tokens_to_claim = 3;
         require!(tokens_to_claim > 0, CustomError::InsufficientFunds);
-
+       
         token::transfer(
-            ctx.accounts.into_transfer_to_user_context(),
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                token::Transfer {
+                    from: ctx.accounts.presale_token_account.to_account_info(),
+                    to: ctx.accounts.signer_token_account.to_account_info(),
+                    authority: ctx.accounts.presale.to_account_info(),
+                },
+                &[&[PRESALE_SEED, &[ctx.bumps.presale]][..]],
+            ),
             tokens_to_claim,
         )?;
 
         // Reset the number of tokens to prevent double-claims
-        ctx.accounts.data.number_of_tokens = 0;
+        // ctx.accounts.data.number_of_tokens = 0;
 
         Ok(())
     }
@@ -108,47 +116,26 @@ pub mod omerta_presale {
 }
 
 
-impl<'info> ClaimTokens<'info> {
-    pub fn into_transfer_to_user_context(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
-        CpiContext::new(
-            self.token_program.to_account_info(),
-            Transfer {
-                from: self.presale_token_account.to_account_info(),
-                to: self.signer_token_account.to_account_info(),
-                authority: self.presale.to_account_info(),
-            },
-        )
-    }
-}
 
+pub const PRESALE_SEED:&[u8] = "omerta_presale".as_bytes();
+pub const DATA_SEED:&[u8] = "my_data".as_bytes();
 
 #[derive(Accounts)]
 pub struct ClaimTokens<'info> {
     #[account(
         mut,
-        seeds = [b"my_data", signer.key().as_ref()],
+        seeds = [DATA_SEED, signer.key().as_ref()],
         bump,
     )]
     pub data: Account<'info, InvestmentData>,
 
     #[account(
         mut,
-        seeds = [b"omerta_presale"],
-        bump,
-    )]
-    pub presale: Account<'info, PresaleInfo>,
-
-    #[account(mut)]
-    pub signer: Signer<'info>,
-
-    #[account(
-        mut,
-        constraint = presale_token_account.mint == presale.token_mint,
-        constraint = presale_token_account.owner == presale.key()
+        associated_token::mint = token_mint,
+        associated_token::authority = presale.key()
     )]
     pub presale_token_account: Account<'info, TokenAccount>,
-    #[account(constraint = token_mint.is_initialized == true)]
-    pub token_mint: Account<'info, Mint>, 
+    
     #[account(
         init_if_needed,
         payer = signer,
@@ -157,10 +144,24 @@ pub struct ClaimTokens<'info> {
     )]
     pub signer_token_account: Account<'info, TokenAccount>,
 
+    #[account(
+        mut,
+        seeds = [PRESALE_SEED],
+        bump,
+    )]
+    pub presale: Account<'info, PresaleInfo>,
+
+    #[account(mut)]
+    pub signer: Signer<'info>,
+
+
+    #[account(mut)]
+    pub token_mint: Account<'info, Mint>, 
+   
+
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
-    pub rent: Sysvar<'info, Rent>,
 }
 
 #[account]
@@ -181,7 +182,7 @@ pub struct StartPresale<'info> {
         init_if_needed,
         payer = signer,
         space=8 + std::mem::size_of::<PresaleInfo>(),
-        seeds = [b"omerta_presale"],
+        seeds = [PRESALE_SEED],
         bump
     )]
     pub presale: Account<'info, PresaleInfo>,
@@ -189,9 +190,15 @@ pub struct StartPresale<'info> {
         constraint = token_mint.is_initialized == true,
     )]
     pub token_mint: Account<'info, Mint>, // Token mint account
+
+
     #[account(mut)]
     pub signer: Signer<'info>,
+    
+    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+
 }
 
 
@@ -205,7 +212,7 @@ pub struct Invest<'info> {
          */
         space=8 + std::mem::size_of::<InvestmentData>(),
         payer=from,
-        seeds=[b"my_data",from.key().as_ref()],
+        seeds=[DATA_SEED,from.key().as_ref()],
         bump
 
     )]
@@ -215,7 +222,7 @@ pub struct Invest<'info> {
     pub from: Signer<'info>,
     #[account(
         mut,
-        seeds = [b"omerta_presale"],
+        seeds = [PRESALE_SEED],
         bump
     )]
     pub presale: Account<'info,PresaleInfo>,
@@ -238,7 +245,7 @@ pub struct WithdrawSol<'info> {
     pub signer: Signer<'info>,
     #[account(
         mut,
-        seeds = [b"omerta_presale"],
+        seeds = [PRESALE_SEED],
         bump
     )]
     pub presale: Account<'info,PresaleInfo>,
