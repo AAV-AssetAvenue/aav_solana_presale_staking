@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer, MintTo};
+use anchor_spl::{associated_token::AssociatedToken, token::{self, Mint, Token, TokenAccount, Transfer}};
 declare_id!("G7n94bhEkqKwBkgqVALJ2AzPrugaca5XH2pWw3xy88xB");
 
 #[program]
@@ -128,7 +128,6 @@ pub struct ClaimTokens<'info> {
         mut,
         seeds = [b"my_data", signer.key().as_ref()],
         bump,
-        has_one = signer,
     )]
     pub data: Account<'info, InvestmentData>,
 
@@ -229,11 +228,6 @@ pub struct InvestmentData {
     pub number_of_tokens: u64,
 }
 
-
-
-
-
-
 #[derive(Accounts)]
 pub struct WithdrawSol<'info> {
  
@@ -265,5 +259,4 @@ pub enum CustomError {
     #[msg("unauthorized")]
     Unauthorized,
 }
-
 
