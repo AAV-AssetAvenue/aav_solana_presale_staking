@@ -12,8 +12,8 @@ pub mod omerta_presale {
     pub fn start_presale(
         ctx: Context<StartPresale>,
         goal: u64,
-        start_time: i64,
-        end_time: i64,
+        start_time: u64,
+        end_time: u64,
         price_per_token: u64,
     ) -> Result<()> {
         let presale = &mut ctx.accounts.presale;
@@ -29,17 +29,18 @@ pub mod omerta_presale {
         presale.token_mint =  ctx.accounts.token_mint.key();
         Ok(())
     }
+    
     pub fn invest_sol(ctx: Context<Invest>, value: u64) -> Result<()> {
         let from_account = &ctx.accounts.from;
         let presale_data = &mut ctx.accounts.presale;
 
 
-        let clock = Clock::get()?;
-        let current_timestamp = clock.unix_timestamp;
+        let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
+
         
         require!(presale_data.is_live, CustomError::PresaleNotLive);
-        require!(current_timestamp > presale_data.start_time, CustomError::PresaleNotStarted);
-        require!(current_timestamp < presale_data.end_time, CustomError::PresaleHasEnd);
+        require!(cur_timestamp > presale_data.start_time, CustomError::PresaleNotStarted);
+        require!(cur_timestamp < presale_data.end_time, CustomError::PresaleHasEnd);
 
         let presale = presale_data.to_account_info();
         
@@ -68,20 +69,22 @@ pub mod omerta_presale {
     }
 
     pub fn claim_tokens(ctx: Context<ClaimTokens>) -> Result<()> {
-        // let investment_data = &ctx.accounts.data;
         let presale_data = &ctx.accounts.presale;
 
         // Ensure the presale has ended before allowing token claims
-        let clock = Clock::get()?;
-        // require!(clock.unix_timestamp > presale_data.end_time, CustomError::PresaleNotLive);
+        let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
+        require!(cur_timestamp > presale_data.end_time, CustomError::PresaleHasEnd);
 
-        let tokens_to_claim = 3;
+        let tokens_to_claim = ctx.accounts.data.number_of_tokens;
         require!(tokens_to_claim > 0, CustomError::InsufficientFunds);
-       
+
+        // Reset the number of tokens to prevent double-claims
+        ctx.accounts.data.number_of_tokens = 0;
+        
         token::transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
-                token::Transfer {
+                Transfer {
                     from: ctx.accounts.presale_token_account.to_account_info(),
                     to: ctx.accounts.signer_token_account.to_account_info(),
                     authority: ctx.accounts.presale.to_account_info(),
@@ -90,10 +93,7 @@ pub mod omerta_presale {
             ),
             tokens_to_claim,
         )?;
-
-        // Reset the number of tokens to prevent double-claims
-        // ctx.accounts.data.number_of_tokens = 0;
-
+        
         Ok(())
     }
  
@@ -169,8 +169,8 @@ pub struct PresaleInfo {
     pub goal: u64,
     pub token_mint: Pubkey,
     pub amount_raised: u64,
-    pub start_time: i64,
-    pub end_time: i64,
+    pub start_time: u64,
+    pub end_time: u64,
     pub price_per_token: u64,
     pub is_live:bool,
     pub authority:Pubkey

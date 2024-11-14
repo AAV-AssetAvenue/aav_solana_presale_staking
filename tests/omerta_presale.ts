@@ -207,6 +207,7 @@ it("init token",async()=>{
   })
 
   it("claim tokens",async()=>{
+    await sleep(5)
     const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("my_data"),account2.publicKey.toBuffer()],
       program.programId
@@ -239,45 +240,45 @@ it("init token",async()=>{
     .rpc();
   })
 
-//   it("fail withdraw sol",async()=>{
-//     try{
+  it("fail withdraw sol",async()=>{
+    try{
    
-//     const startPresaleContext = {
+    const startPresaleContext = {
 
-//       signer:account2.publicKey,
-//       presale:presalePda,
-//       systemProgram: anchor.web3.SystemProgram.programId,
+      signer:account2.publicKey,
+      presale:presalePda,
+      systemProgram: anchor.web3.SystemProgram.programId,
 
-//     }
-//     // Add your test here.
-//     await program.methods.withdrawSol()        
-//     .accounts(startPresaleContext)
-//     .signers([account2])
-//     .rpc();
-//   }catch(e){
-//     if (e instanceof anchor.AnchorError){
-//     assert(e.message.includes("unauthorized"))
-//   }else{
-//     assert(false);
-//   }
-// }
-//   })
+    }
+    // Add your test here.
+    await program.methods.withdrawSol()        
+    .accounts(startPresaleContext)
+    .signers([account2])
+    .rpc();
+  }catch(e){
+    if (e instanceof anchor.AnchorError){
+    assert(e.message.includes("unauthorized"))
+  }else{
+    assert(false);
+  }
+}
+  })
 
-//   it("withdraw sol",async()=>{
+  it("withdraw sol",async()=>{
    
-//     const startPresaleContext = {
+    const startPresaleContext = {
 
-//       signer:account1,
-//       presale:presalePda,
-//       systemProgram: anchor.web3.SystemProgram.programId,
+      signer:account1,
+      presale:presalePda,
+      systemProgram: anchor.web3.SystemProgram.programId,
 
-//     }
-//     const beforeBalance = await getSolBalance(program,account1)
-//     // Add your test here.
-//     await program.methods.withdrawSol()        
-//     .accounts(startPresaleContext)
-//     .rpc();
-//     const afterBalance = await getSolBalance(program,account1)
-//     // assert.isTrue(afterBalance > beforeBalance+Number(2*1e9));
-//   })
+    }
+    const beforeBalance = await getSolBalance(program,account1)
+    // Add your test here.
+    await program.methods.withdrawSol()        
+    .accounts(startPresaleContext)
+    .rpc();
+    const afterBalance = await getSolBalance(program,account1)
+    // assert.isTrue(afterBalance > beforeBalance+Number(2*1e9));
+  })
 });
