@@ -115,7 +115,7 @@ it("init token",async()=>{
       signer:account1,
       presale:presalePda,
       systemProgram: anchor.web3.SystemProgram.programId,
-      tokenMint:mint
+      
     }
 
     // Add your test here.
@@ -152,6 +152,21 @@ it("init token",async()=>{
     await token.methods
       .mintTokens(new anchor.BN((mintAmount * 10 ** metadata.decimals).toString()))
       .accounts(mintContext)
+      .rpc();
+  })
+
+
+
+  it("set token address in presale",async()=>{
+ 
+    const context = {
+      tokenMint:mint,
+      presale:presalePda,
+      signer:account1,
+    };
+    await program.methods
+      .setTokenAddress()
+      .accounts(context)
       .rpc();
   })
 
@@ -195,7 +210,6 @@ it("init token",async()=>{
 
     }
 
-    await sleep(5)
     // Add your test here.
     await program.methods.investSol(account2Investment)        
     .accounts(context)
@@ -208,9 +222,48 @@ it("init token",async()=>{
     // console.log(Number(data.numberOfTokens))
 
   })
+  it("fail claim tokens",async()=>{
+    try{
+    const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from(DATA_SEED),account2.publicKey.toBuffer()],
+      program.programId
+    );
+    const reciever_ata = anchor.utils.token.associatedAddress({
+      mint: mint,
+      owner: account2.publicKey,
+    });
+    const presale_ata = anchor.utils.token.associatedAddress({
+      mint: mint,
+      owner: presalePda,
+    });
 
+    const context = {
+      data:dataPda,
+      presale:presalePda,
+      signer:account2.publicKey,
+      presaleTokenAccount:presale_ata,
+      tokenMint:mint,
+      signerTokenAccount:reciever_ata,
+      systemProgram: anchor.web3.SystemProgram.programId,
+      tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+      associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
+    }
+
+    // Add your test here.
+    await program.methods.claimTokens()        
+    .accounts(context)
+    .signers([account2])
+    .rpc();
+  }catch(e){
+    if (e instanceof anchor.AnchorError){
+    assert(e.message.includes("PresaleHasNotEndedYet"))
+  }else{
+    assert(false);
+  }
+}
+  })
   it("claim tokens",async()=>{
-    await sleep(5)
+    await sleep(7)
     const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from(DATA_SEED),account2.publicKey.toBuffer()],
       program.programId

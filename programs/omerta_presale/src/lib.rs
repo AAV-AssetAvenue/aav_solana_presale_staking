@@ -90,7 +90,7 @@ pub mod omerta_presale {
 
         // Ensure the presale has ended before allowing token claims
         let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
-        require!(cur_timestamp > presale_data.end_time, CustomError::PresaleHasEnd);
+        require!(cur_timestamp > presale_data.end_time, CustomError::PresaleHasNotEndedYet);
 
         let tokens_to_claim = ctx.accounts.data.number_of_tokens;
         require!(tokens_to_claim > 0, CustomError::InsufficientFunds);
@@ -136,48 +136,6 @@ pub mod omerta_presale {
 pub const PRESALE_SEED:&[u8] = "omerta_presale".as_bytes();
 pub const DATA_SEED:&[u8] = "my_data".as_bytes();
 
-#[derive(Accounts)]
-pub struct StopPresale<'info> {
-    #[account(
-        mut,
-        seeds = [PRESALE_SEED],
-        bump
-    )]
-    pub presale: Account<'info, PresaleInfo>,
-
-    #[account(
-        mut,
-        constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
-    )]
-    pub signer: Signer<'info>,
-    
-}
-
-
-#[derive(Accounts)]
-pub struct SetTokenAddress<'info> {
-    #[account(
-        constraint = token_mint.is_initialized == true,
-    )]
-    pub token_mint: Account<'info, Mint>, // Token mint account
-
-    #[account(
-        mut,
-        seeds = [PRESALE_SEED],
-        bump
-    )]
-    pub presale: Account<'info, PresaleInfo>,
-
-    #[account(
-        mut,
-        constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
-    )]
-    pub signer: Signer<'info>,
-    
-}
-
-
-
 #[account]
 pub struct PresaleInfo {
     pub goal: u64,
@@ -188,6 +146,13 @@ pub struct PresaleInfo {
     pub price_per_token: u64,
     pub is_live:bool,
     pub authority:Pubkey
+}
+
+
+#[account]
+pub struct InvestmentData {
+    pub amount: u64,
+    pub number_of_tokens: u64,
 }
 
 #[derive(Accounts)]
@@ -216,11 +181,6 @@ pub struct StartPresale<'info> {
 
 
 
-#[account]
-pub struct InvestmentData {
-    pub amount: u64,
-    pub number_of_tokens: u64,
-}
 #[derive(Accounts)]
 pub struct Invest<'info> {
     #[account(
@@ -313,6 +273,46 @@ pub struct ClaimTokens<'info> {
 }
 
 
+#[derive(Accounts)]
+pub struct SetTokenAddress<'info> {
+    #[account(
+        constraint = token_mint.is_initialized == true,
+    )]
+    pub token_mint: Account<'info, Mint>, // Token mint account
+
+    #[account(
+        mut,
+        seeds = [PRESALE_SEED],
+        bump
+    )]
+    pub presale: Account<'info, PresaleInfo>,
+
+    #[account(
+        mut,
+        constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
+    )]
+    pub signer: Signer<'info>,
+    
+}
+
+#[derive(Accounts)]
+pub struct StopPresale<'info> {
+    #[account(
+        mut,
+        seeds = [PRESALE_SEED],
+        bump
+    )]
+    pub presale: Account<'info, PresaleInfo>,
+
+    #[account(
+        mut,
+        constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
+    )]
+    pub signer: Signer<'info>,
+    
+}
+
+
 #[error_code]
 pub enum CustomError {
     #[msg("Insufficient funds")]
@@ -327,5 +327,7 @@ pub enum CustomError {
     Unauthorized,
     #[msg("Presale already stopped")]
     PresaleAlreadyStopped,
+    #[msg("Presale has not ended yet")]
+    PresaleHasNotEndedYet,
 }
 
