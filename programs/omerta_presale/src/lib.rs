@@ -1,11 +1,11 @@
 use anchor_lang::prelude::*;
-use anchor_spl::{associated_token::AssociatedToken, token::{self, Mint, Token, TokenAccount, Transfer}};
+use anchor_lang::solana_program::system_instruction;
+use anchor_spl::{associated_token::AssociatedToken, token::{transfer, Mint, Token, TokenAccount, Transfer}};
 declare_id!("G7n94bhEkqKwBkgqVALJ2AzPrugaca5XH2pWw3xy88xB");
 
 #[program]
 pub mod omerta_presale {
 
-    use anchor_lang::solana_program::system_instruction;
 
     use super::*;
 
@@ -18,7 +18,6 @@ pub mod omerta_presale {
     ) -> Result<()> {
         let presale = &mut ctx.accounts.presale;
 
-        // Set the presale details
         presale.goal = goal;
         presale.start_time = start_time;
         presale.end_time = end_time;
@@ -26,29 +25,46 @@ pub mod omerta_presale {
         presale.is_live = true;
         presale.amount_raised = 0;
         presale.authority = ctx.accounts.signer.key();
+        Ok(())
+    }
+    pub fn stop_presale(ctx: Context<StopPresale>) -> Result<()> {
+        
+        let presale = &mut ctx.accounts.presale;
+        require!(!presale.is_live, CustomError::PresaleAlreadyStopped); 
+
+        presale.is_live = false;
+        Ok(())
+    }
+
+    pub fn set_token_address(ctx: Context<SetTokenAddress>) -> Result<()>{
+        let presale = &mut ctx.accounts.presale;
         presale.token_mint =  ctx.accounts.token_mint.key();
+
         Ok(())
     }
     
     pub fn invest_sol(ctx: Context<Invest>, value: u64) -> Result<()> {
-        let from_account = &ctx.accounts.from;
         let presale_data = &mut ctx.accounts.presale;
+        
+        require!(presale_data.is_live, CustomError::PresaleNotLive);
 
 
         let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
 
         
-        require!(presale_data.is_live, CustomError::PresaleNotLive);
         require!(cur_timestamp > presale_data.start_time, CustomError::PresaleNotStarted);
         require!(cur_timestamp < presale_data.end_time, CustomError::PresaleHasEnd);
 
-        let presale = presale_data.to_account_info();
         
         ctx.accounts.data.amount += value;
-        presale_data.amount_raised += value;
-
+        
         let number_of_tokens = value/presale_data.price_per_token;
         ctx.accounts.data.number_of_tokens += number_of_tokens;
+        
+        presale_data.amount_raised += value;
+
+        let from_account = &ctx.accounts.from;
+        let presale = presale_data.to_account_info();
 
 
         // Create the transfer instruction
@@ -70,6 +86,7 @@ pub mod omerta_presale {
 
     pub fn claim_tokens(ctx: Context<ClaimTokens>) -> Result<()> {
         let presale_data = &ctx.accounts.presale;
+        require!(presale_data.is_live, CustomError::PresaleNotLive);
 
         // Ensure the presale has ended before allowing token claims
         let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
@@ -81,7 +98,7 @@ pub mod omerta_presale {
         // Reset the number of tokens to prevent double-claims
         ctx.accounts.data.number_of_tokens = 0;
         
-        token::transfer(
+        transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
                 Transfer {
@@ -97,7 +114,6 @@ pub mod omerta_presale {
         Ok(())
     }
  
-
     pub fn withdraw_sol(ctx: Context<WithdrawSol>) -> Result<()> {
 
         let presale = &mut ctx.accounts.presale.to_account_info();
@@ -119,6 +135,138 @@ pub mod omerta_presale {
 
 pub const PRESALE_SEED:&[u8] = "omerta_presale".as_bytes();
 pub const DATA_SEED:&[u8] = "my_data".as_bytes();
+
+#[derive(Accounts)]
+pub struct StopPresale<'info> {
+    #[account(
+        mut,
+        seeds = [PRESALE_SEED],
+        bump
+    )]
+    pub presale: Account<'info, PresaleInfo>,
+
+    #[account(
+        mut,
+        constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
+    )]
+    pub signer: Signer<'info>,
+    
+}
+
+
+#[derive(Accounts)]
+pub struct SetTokenAddress<'info> {
+    #[account(
+        constraint = token_mint.is_initialized == true,
+    )]
+    pub token_mint: Account<'info, Mint>, // Token mint account
+
+    #[account(
+        mut,
+        seeds = [PRESALE_SEED],
+        bump
+    )]
+    pub presale: Account<'info, PresaleInfo>,
+
+    #[account(
+        mut,
+        constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
+    )]
+    pub signer: Signer<'info>,
+    
+}
+
+
+
+#[account]
+pub struct PresaleInfo {
+    pub goal: u64,
+    pub token_mint: Pubkey,
+    pub amount_raised: u64,
+    pub start_time: u64,
+    pub end_time: u64,
+    pub price_per_token: u64,
+    pub is_live:bool,
+    pub authority:Pubkey
+}
+
+#[derive(Accounts)]
+pub struct StartPresale<'info> {
+    #[account(
+        init_if_needed,
+        payer = signer,
+          /*
+        Discriminator: 8 bytes
+        PresaleInfo : size of PresaleInfo
+         */
+        space=8 + std::mem::size_of::<PresaleInfo>(),
+        seeds = [PRESALE_SEED],
+        bump
+    )]
+    pub presale: Account<'info, PresaleInfo>,
+ 
+
+    #[account(mut)]
+    pub signer: Signer<'info>,
+    
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+
+}
+
+
+
+#[account]
+pub struct InvestmentData {
+    pub amount: u64,
+    pub number_of_tokens: u64,
+}
+#[derive(Accounts)]
+pub struct Invest<'info> {
+    #[account(
+        init_if_needed,
+        /*
+        Discriminator: 8 bytes
+        InvestmentData : size of InvestmentData
+         */
+        space=8 + std::mem::size_of::<InvestmentData>(),
+        payer=from,
+        seeds=[DATA_SEED,from.key().as_ref()],
+        bump
+
+    )]
+    pub data: Account<'info, InvestmentData>,
+
+    #[account(mut)]
+    pub from: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [PRESALE_SEED],
+        bump
+    )]
+    pub presale: Account<'info,PresaleInfo>,
+    pub system_program: Program<'info, System>,
+}
+
+
+
+#[derive(Accounts)]
+pub struct WithdrawSol<'info> {
+ 
+    #[account(
+        mut,
+        constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
+    )]
+    pub signer: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [PRESALE_SEED],
+        bump
+    )]
+    pub presale: Account<'info,PresaleInfo>,
+    pub system_program: Program<'info, System>,
+}
+
 
 #[derive(Accounts)]
 pub struct ClaimTokens<'info> {
@@ -164,94 +312,6 @@ pub struct ClaimTokens<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
-#[account]
-pub struct PresaleInfo {
-    pub goal: u64,
-    pub token_mint: Pubkey,
-    pub amount_raised: u64,
-    pub start_time: u64,
-    pub end_time: u64,
-    pub price_per_token: u64,
-    pub is_live:bool,
-    pub authority:Pubkey
-}
-
-#[derive(Accounts)]
-pub struct StartPresale<'info> {
-    #[account(
-        init_if_needed,
-        payer = signer,
-        space=8 + std::mem::size_of::<PresaleInfo>(),
-        seeds = [PRESALE_SEED],
-        bump
-    )]
-    pub presale: Account<'info, PresaleInfo>,
-    #[account(
-        constraint = token_mint.is_initialized == true,
-    )]
-    pub token_mint: Account<'info, Mint>, // Token mint account
-
-
-    #[account(mut)]
-    pub signer: Signer<'info>,
-    
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-
-}
-
-
-#[derive(Accounts)]
-pub struct Invest<'info> {
-    #[account(
-        init_if_needed,
-        /*
-        Discriminator: 8 bytes
-        u64 : 8 bytes
-         */
-        space=8 + std::mem::size_of::<InvestmentData>(),
-        payer=from,
-        seeds=[DATA_SEED,from.key().as_ref()],
-        bump
-
-    )]
-    pub data: Account<'info, InvestmentData>,
-
-    #[account(mut)]
-    pub from: Signer<'info>,
-    #[account(
-        mut,
-        seeds = [PRESALE_SEED],
-        bump
-    )]
-    pub presale: Account<'info,PresaleInfo>,
-    pub system_program: Program<'info, System>,
-}
-
-#[account]
-pub struct InvestmentData {
-    pub amount: u64,
-    pub number_of_tokens: u64,
-}
-
-#[derive(Accounts)]
-pub struct WithdrawSol<'info> {
- 
-    #[account(
-        mut,
-        constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
-    )]
-    pub signer: Signer<'info>,
-    #[account(
-        mut,
-        seeds = [PRESALE_SEED],
-        bump
-    )]
-    pub presale: Account<'info,PresaleInfo>,
-    pub system_program: Program<'info, System>,
-}
-
 
 #[error_code]
 pub enum CustomError {
@@ -263,7 +323,9 @@ pub enum CustomError {
     PresaleNotStarted,
     #[msg("Presale has end")]
     PresaleHasEnd,
-    #[msg("unauthorized")]
+    #[msg("Unauthorized")]
     Unauthorized,
+    #[msg("Presale already stopped")]
+    PresaleAlreadyStopped,
 }
 

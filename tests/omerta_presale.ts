@@ -35,7 +35,7 @@ async function getSolBalance(pg:Program<OmertaPresale>,address:anchor.web3.Publi
   return initialBalance;
 }
 
-describe("omerta_presale", () => {
+describe("omerta presale testcases", () => {
   
 
   // Configure the client to use the local cluster.
@@ -53,6 +53,8 @@ describe("omerta_presale", () => {
     decimals: 6,
   };
   const MINT_SEED = "omerta-mint";
+  const DATA_SEED = "my_data";
+  const PRESALE_SEED = "omerta_presale";
   const [mint] = anchor.web3.PublicKey.findProgramAddressSync(
     [Buffer.from(MINT_SEED)],
     token.programId
@@ -69,13 +71,13 @@ describe("omerta_presale", () => {
   );
   const account1 = program.provider.publicKey
   const account2 = anchor.web3.Keypair.generate()
-
+  const account2Investment= new BN(2*1e9)
   const date = Math.floor(new Date().getTime()/1000)
   const endDate = date +  7 // 7 seconds
   const goal = 3*1e9
 
   const [presalePda] = anchor.web3.PublicKey.findProgramAddressSync(
-    [Buffer.from("omerta_presale")],
+    [Buffer.from(PRESALE_SEED)],
     program.programId
   );
 
@@ -121,7 +123,7 @@ it("init token",async()=>{
       new BN(goal), // goal
       new BN(date), // startTime
       new BN(endDate), // endTime
-      new BN(1000) // pricePerToken
+      new BN(150900) // pricePerToken
     )        
     .accounts(startPresaleContext)
     .rpc();
@@ -132,7 +134,7 @@ it("init token",async()=>{
     assert.equal(endDate,Number(data.endTime));
     assert.equal(goal,Number(data.goal));
     assert.equal(date,Number(data.startTime));
-    assert.equal(1000,Number(data.pricePerToken));
+    assert.equal(150900,Number(data.pricePerToken));
     assert.equal(true,data.isLive);
   });
 
@@ -182,7 +184,7 @@ it("init token",async()=>{
 
   it("invest sol",async()=>{
     const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("my_data"),account2.publicKey.toBuffer()],
+      [Buffer.from(DATA_SEED),account2.publicKey.toBuffer()],
       program.programId
     );
     const context = {
@@ -195,21 +197,22 @@ it("init token",async()=>{
 
     await sleep(5)
     // Add your test here.
-    await program.methods.investSol(new BN(2*1e9))        
+    await program.methods.investSol(account2Investment)        
     .accounts(context)
     .signers([account2])
     .rpc();
 
     // let solBalance = await program.account.presaleInfo.fetch(presalePda)
     // assert.equal(Number(solBalance.amountRaised),2*1e9);
-
+    // const data = await program.account.investmentData.fetch(dataPda)
+    // console.log(Number(data.numberOfTokens))
 
   })
 
   it("claim tokens",async()=>{
     await sleep(5)
     const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("my_data"),account2.publicKey.toBuffer()],
+      [Buffer.from(DATA_SEED),account2.publicKey.toBuffer()],
       program.programId
     );
     const reciever_ata = anchor.utils.token.associatedAddress({
@@ -233,11 +236,15 @@ it("init token",async()=>{
       associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
     }
 
+    const data = await program.account.investmentData.fetch(dataPda)
     // Add your test here.
     await program.methods.claimTokens()        
     .accounts(context)
     .signers([account2])
     .rpc();
+    const balance = (await program.provider.connection.getTokenAccountBalance(reciever_ata))
+    assert.equal(Number(balance.value.amount),Number(data.numberOfTokens))
+    assert.equal(Number(account2Investment),Number(data.amount))
   })
 
   it("fail withdraw sol",async()=>{
@@ -257,7 +264,7 @@ it("init token",async()=>{
     .rpc();
   }catch(e){
     if (e instanceof anchor.AnchorError){
-    assert(e.message.includes("unauthorized"))
+    assert(e.message.includes("Unauthorized"))
   }else{
     assert(false);
   }
@@ -274,11 +281,10 @@ it("init token",async()=>{
 
     }
     const beforeBalance = await getSolBalance(program,account1)
-    // Add your test here.
     await program.methods.withdrawSol()        
     .accounts(startPresaleContext)
     .rpc();
     const afterBalance = await getSolBalance(program,account1)
-    // assert.isTrue(afterBalance > beforeBalance+Number(2*1e9));
+    assert.isTrue(afterBalance > beforeBalance+Number(2*1e9));
   })
 });
