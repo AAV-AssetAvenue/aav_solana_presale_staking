@@ -1,5 +1,4 @@
-use anchor_lang::prelude::*;
-use anchor_lang::solana_program::system_instruction;
+use anchor_lang::{prelude::*, solana_program};
 use anchor_spl::{associated_token::AssociatedToken, token::{transfer, Mint, Token, TokenAccount, Transfer}};
 declare_id!("G7n94bhEkqKwBkgqVALJ2AzPrugaca5XH2pWw3xy88xB");
 
@@ -70,7 +69,7 @@ pub mod omerta_presale {
 
         // Create the transfer instruction
         let transfer_instruction =
-            system_instruction::transfer(from_account.key, presale.key, value);
+        solana_program::system_instruction::transfer(from_account.key, presale.key, value);
 
         // Invoke the transfer instruction
         anchor_lang::solana_program::program::invoke(
@@ -138,6 +137,7 @@ pub const PRESALE_SEED:&[u8] = "omerta_presale".as_bytes();
 pub const DATA_SEED:&[u8] = "my_data".as_bytes();
 
 #[account]
+#[derive(Default)]
 pub struct PresaleInfo {
     pub goal: u64,
     pub token_mint: Pubkey,
@@ -151,6 +151,7 @@ pub struct PresaleInfo {
 
 
 #[account]
+#[derive(Default)]
 pub struct InvestmentData {
     pub amount: u64,
     pub number_of_tokens: u64,
@@ -170,7 +171,7 @@ pub struct StartPresale<'info> {
         seeds = [PRESALE_SEED],
         bump
     )]
-    pub presale: Account<'info, PresaleInfo>,
+    pub presale: Box<Account<'info, PresaleInfo>>,
  
 
     #[account(mut)]
@@ -197,7 +198,7 @@ pub struct Invest<'info> {
         bump
 
     )]
-    pub data: Account<'info, InvestmentData>,
+    pub data: Box<Account<'info, InvestmentData>>,
 
     #[account(mut)]
     pub from: Signer<'info>,
@@ -206,7 +207,7 @@ pub struct Invest<'info> {
         seeds = [PRESALE_SEED],
         bump
     )]
-    pub presale: Account<'info,PresaleInfo>,
+    pub presale: Box<Account<'info,PresaleInfo>>,
     pub system_program: Program<'info, System>,
 }
 
@@ -225,7 +226,7 @@ pub struct WithdrawSol<'info> {
         seeds = [PRESALE_SEED],
         bump
     )]
-    pub presale: Account<'info,PresaleInfo>,
+    pub presale: Box<Account<'info,PresaleInfo>>,
     pub system_program: Program<'info, System>,
 }
 
@@ -244,7 +245,7 @@ pub struct ClaimTokens<'info> {
         associated_token::mint = token_mint,
         associated_token::authority = presale.key()
     )]
-    pub presale_token_account: Account<'info, TokenAccount>,
+    pub presale_token_account: Box<Account<'info, TokenAccount>>,
     
     #[account(
         init_if_needed,
@@ -252,21 +253,21 @@ pub struct ClaimTokens<'info> {
         associated_token::mint = token_mint,
         associated_token::authority = signer,
     )]
-    pub signer_token_account: Account<'info, TokenAccount>,
+    pub signer_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         seeds = [PRESALE_SEED],
         bump,
     )]
-    pub presale: Account<'info, PresaleInfo>,
+    pub presale: Box<Account<'info, PresaleInfo>>,
 
     #[account(mut)]
     pub signer: Signer<'info>,
 
 
     #[account(mut)]
-    pub token_mint: Account<'info, Mint>, 
+    pub token_mint: Box<Account<'info, Mint>>, 
    
 
     pub token_program: Program<'info, Token>,
@@ -280,14 +281,14 @@ pub struct SetTokenAddress<'info> {
     #[account(
         constraint = token_mint.is_initialized == true,
     )]
-    pub token_mint: Account<'info, Mint>, // Token mint account
+    pub token_mint: Box<Account<'info, Mint>>, // Token mint account
 
     #[account(
         mut,
         seeds = [PRESALE_SEED],
         bump
     )]
-    pub presale: Account<'info, PresaleInfo>,
+    pub presale: Box<Account<'info, PresaleInfo>>,
 
     #[account(
         mut,
@@ -304,7 +305,7 @@ pub struct StopPresale<'info> {
         seeds = [PRESALE_SEED],
         bump
     )]
-    pub presale: Account<'info, PresaleInfo>,
+    pub presale: Box<Account<'info, PresaleInfo>>,
 
     #[account(
         mut,
