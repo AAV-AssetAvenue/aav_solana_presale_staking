@@ -47,6 +47,7 @@ pub mod omerta_presale {
         let presale_data = &mut ctx.accounts.presale;
         
         require!(presale_data.is_live, CustomError::PresaleNotLive);
+        require!(presale_data.amount_raised+value <= presale_data.goal , CustomError::CanNotIvestMoreOrGoalReached);
 
 
         let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
@@ -93,10 +94,10 @@ pub mod omerta_presale {
         require!(cur_timestamp > presale_data.end_time, CustomError::PresaleHasNotEndedYet);
 
         let tokens_to_claim = ctx.accounts.data.number_of_tokens;
-        require!(tokens_to_claim > 0, CustomError::InsufficientFunds);
+        require!(tokens_to_claim > 0, CustomError::YouHaveNotInvestedInPresale);
+        require!(!ctx.accounts.data.has_claimed, CustomError::AlreadyClaimed);
 
-        // Reset the number of tokens to prevent double-claims
-        ctx.accounts.data.number_of_tokens = 0;
+        ctx.accounts.data.has_claimed = true;
         
         transfer(
             CpiContext::new_with_signer(
@@ -153,6 +154,7 @@ pub struct PresaleInfo {
 pub struct InvestmentData {
     pub amount: u64,
     pub number_of_tokens: u64,
+    pub has_claimed: bool
 }
 
 #[derive(Accounts)]
@@ -329,5 +331,11 @@ pub enum CustomError {
     PresaleAlreadyStopped,
     #[msg("Presale has not ended yet")]
     PresaleHasNotEndedYet,
+    #[msg("You Have Not Invested In Presale")]
+    YouHaveNotInvestedInPresale,
+    #[msg("Already claimed")]
+    AlreadyClaimed,
+    #[msg("Can not Ivest More Or Goal Reached")]
+    CanNotIvestMoreOrGoalReached
 }
 

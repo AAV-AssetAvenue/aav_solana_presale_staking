@@ -289,15 +289,55 @@ it("init token",async()=>{
       associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
     }
 
-    const data = await program.account.investmentData.fetch(dataPda)
     // Add your test here.
     await program.methods.claimTokens()        
     .accounts(context)
     .signers([account2])
     .rpc();
+    const data = await program.account.investmentData.fetch(dataPda)
     const balance = (await program.provider.connection.getTokenAccountBalance(reciever_ata))
     assert.equal(Number(balance.value.amount),Number(data.numberOfTokens))
     assert.equal(Number(account2Investment),Number(data.amount))
+  })
+  it("fail already claim tokens",async()=>{
+    try{
+    const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from(DATA_SEED),account2.publicKey.toBuffer()],
+      program.programId
+    );
+    const reciever_ata = anchor.utils.token.associatedAddress({
+      mint: mint,
+      owner: account2.publicKey,
+    });
+    const presale_ata = anchor.utils.token.associatedAddress({
+      mint: mint,
+      owner: presalePda,
+    });
+
+    const context = {
+      data:dataPda,
+      presale:presalePda,
+      signer:account2.publicKey,
+      presaleTokenAccount:presale_ata,
+      tokenMint:mint,
+      signerTokenAccount:reciever_ata,
+      systemProgram: anchor.web3.SystemProgram.programId,
+      tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+      associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
+    }
+
+    // Add your test here.
+    await program.methods.claimTokens()        
+    .accounts(context)
+    .signers([account2])
+    .rpc();
+  }catch(e){
+    if (e instanceof anchor.AnchorError){
+      assert(e.message.includes("AlreadyClaimed"))
+    }else{
+      assert(false);
+    }
+  }
   })
 
   it("fail withdraw sol",async()=>{
