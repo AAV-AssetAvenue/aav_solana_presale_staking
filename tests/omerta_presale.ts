@@ -299,6 +299,7 @@ it("init token",async()=>{
     assert.equal(Number(balance.value.amount),Number(data.numberOfTokens))
     assert.equal(Number(account2Investment),Number(data.amount))
   })
+
   it("fail already claim tokens",async()=>{
     try{
     const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -378,6 +379,41 @@ it("init token",async()=>{
     .accounts(startPresaleContext)
     .rpc();
     const afterBalance = await getSolBalance(program,account1)
-    assert.isTrue(afterBalance > beforeBalance+Number(2*1e9));
+    const rentExemption = await program.provider.connection.getMinimumBalanceForRentExemption(program.account.presaleInfo.size)
+    assert.isTrue(afterBalance > beforeBalance+Number(2*1e9) - rentExemption);
   })
+
+  it("withdraw tokens",async()=>{
+ 
+    const reciever_ata = anchor.utils.token.associatedAddress({
+      mint: mint,
+      owner: account1,
+    });
+    const presale_ata = anchor.utils.token.associatedAddress({
+      mint: mint,
+      owner: presalePda,
+    });
+
+    const context = {
+      presaleTokenAccount:presale_ata,
+      signerTokenAccount:reciever_ata,
+      presale:presalePda,
+      signer:account1,
+      tokenMint:mint,
+      tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+      systemProgram: anchor.web3.SystemProgram.programId,
+      associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
+    }
+
+    // Add your test here.
+    await program.methods.withdrawTokens()        
+    .accounts(context)
+    .rpc();
+    const balance = (await program.provider.connection.getTokenAccountBalance(reciever_ata))
+    const data = await program.account.presaleInfo.fetch(presalePda)
+
+    assert.equal(Number(balance.value.amount),Number(mintAmount* 10 ** metadata.decimals- Number(data.totalTokensSold)))
+    // assert.equal(Number(account2Investment),Number(data.amount))
+  })
+
 });

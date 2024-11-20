@@ -62,6 +62,7 @@ pub mod omerta_presale {
         ctx.accounts.data.number_of_tokens += number_of_tokens;
         
         presale_data.amount_raised += value;
+        presale_data.total_tokens_sold += number_of_tokens;
 
         let from_account = &ctx.accounts.from;
         let presale = presale_data.to_account_info();
@@ -113,18 +114,55 @@ pub mod omerta_presale {
         
         Ok(())
     }
- 
+   
+    pub fn withdraw_tokens(ctx: Context<WithdrawTokens>) -> Result<()> {
+        let presale_data = &ctx.accounts.presale;
+        require!(presale_data.is_live, CustomError::PresaleNotLive);
+
+        // Ensure the presale has ended before allowing token claims
+        let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
+        require!(cur_timestamp > presale_data.end_time, CustomError::PresaleHasNotEndedYet);
+
+        
+        transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.presale_token_account.to_account_info(),
+                    to: ctx.accounts.signer_token_account.to_account_info(),
+                    authority: ctx.accounts.presale.to_account_info(),
+                },
+                &[&[PRESALE_SEED, &[ctx.bumps.presale]][..]],
+            ),
+            ctx.accounts.presale_token_account.amount, //  balance of the presale token account.
+        )?;
+        
+        Ok(())
+    }
     pub fn withdraw_sol(ctx: Context<WithdrawSol>) -> Result<()> {
 
         let presale = &mut ctx.accounts.presale.to_account_info();
         let recipient = &ctx.accounts.signer;
+
+        // Get the minimum rent-exempt balance for the account
+        let rent_exemption = Rent::get()?.minimum_balance(presale.data_len());        
         
         let presale_balance = presale.lamports();
-        
+
         require!(presale_balance > 0 , CustomError::InsufficientFunds);
 
-        **presale.to_account_info().try_borrow_mut_lamports()? -= presale_balance;
-        **recipient.to_account_info().try_borrow_mut_lamports()? += presale_balance;
+        // Ensure there is enough balance to withdraw after leaving rent
+        require!(
+            presale_balance > rent_exemption,
+            CustomError::InsufficientFunds
+        );
+
+        // Calculate the amount to withdraw, leaving the rent-exempt balance
+        let amount_to_withdraw = presale_balance - rent_exemption;
+        
+
+        **presale.to_account_info().try_borrow_mut_lamports()? -= amount_to_withdraw;
+        **recipient.to_account_info().try_borrow_mut_lamports()? += amount_to_withdraw;
     
         Ok(())
     }
@@ -142,6 +180,7 @@ pub struct PresaleInfo {
     pub goal: u64,
     pub token_mint: Pubkey,
     pub amount_raised: u64,
+    pub total_tokens_sold: u64,
     pub start_time: u64,
     pub end_time: u64,
     pub price_per_token: u64,
@@ -263,6 +302,48 @@ pub struct ClaimTokens<'info> {
     pub presale: Box<Account<'info, PresaleInfo>>,
 
     #[account(mut)]
+    pub signer: Signer<'info>,
+
+
+    #[account(mut)]
+    pub token_mint: Box<Account<'info, Mint>>, 
+   
+
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+}
+
+
+#[derive(Accounts)]
+pub struct WithdrawTokens<'info> {
+
+
+    #[account(
+        mut,
+        associated_token::mint = token_mint,
+        associated_token::authority = presale.key()
+    )]
+    pub presale_token_account: Box<Account<'info, TokenAccount>>,
+    
+    #[account(
+        mut,
+        associated_token::mint = token_mint,
+        associated_token::authority = signer,
+    )]
+    pub signer_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        seeds = [PRESALE_SEED],
+        bump,
+    )]
+    pub presale: Box<Account<'info, PresaleInfo>>,
+
+    #[account(
+        mut,
+        constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
+    )]
     pub signer: Signer<'info>,
 
 
