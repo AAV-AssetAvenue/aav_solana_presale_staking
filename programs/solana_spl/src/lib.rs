@@ -99,7 +99,7 @@ pub mod solana_spl {
 
     pub fn mint_tokens(ctx: Context<MintTokens>, amount: u64) -> Result<()> {
 
-        require!(ctx.accounts.mint.supply + amount <= MAX_CAP, CustomError::CapExceed);
+        // require!(ctx.accounts.mint.supply + amount <= MAX_CAP, CustomError::CapExceed);
 
         // PDA seeds and bump to "sign" for CPI
         let seeds = &[MIN_SEED, &[ctx.bumps.mint]];
@@ -153,35 +153,7 @@ pub mod solana_spl {
         Ok(())
     }
 
-    pub fn burn(ctx: Context<BurnTokens>, amount: u64) -> Result<()> {
-        anchor_spl::token::burn(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                Burn {
-                    mint: ctx.accounts.mint.to_account_info(),
-                    from: ctx.accounts.from_ata.to_account_info(),   
-                    authority: ctx.accounts.payer.to_account_info(),
-                },
-            ),
-            amount,
-        )?;
-        Ok(())
-    }
-
-    pub fn change_mint_authority(ctx: Context<ChangeMintAuthority>,new_authority: Pubkey) -> Result<()> {
-        anchor_spl::token::set_authority(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                SetAuthority {
-                    current_authority: ctx.accounts.current_authority.to_account_info(),
-                    account_or_mint:ctx.accounts.mint.to_account_info() 
-                },
-            ),
-            anchor_spl::token::spl_token::instruction::AuthorityType::MintTokens, // AuthorityType is an enum
-            Some(new_authority),
-        )?;
-        Ok(())
-    }
+ 
 }
 
 
