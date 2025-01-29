@@ -4,7 +4,8 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-omerta_presale = "G7n94bhEkqKwBkgqVALJ2AzPrugaca5XH2pWw3xy88xB"
+solana_presale = "G7n94bhEkqKwBkgqVALJ2AzPrugaca5XH2pWw3xy88xB"
+solana_spl = "7bjWGkAyy4pRGZtSqhJDJVdYtf3oNnWXKUfmo89o8VGr"
 
 [registry]
 url = "https://api.apr.dev"

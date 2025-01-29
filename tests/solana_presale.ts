@@ -1,9 +1,9 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { OmertaPresale } from "../target/types/omerta_presale";
+import { SolanaPresale } from "../target/types/solana_presale";
 import { assert } from "chai";
 import { BN } from "bn.js";
-import { OmertaSolanaSpl } from "../target/types/omerta_solana_spl";
+import { SolanaSpl } from "../target/types/solana_spl";
 import { createAssociatedTokenAccount } from "@solana/spl-token";
 
 const sleep = (s: number) => new Promise(resolve => setTimeout(resolve, s*1000));
@@ -23,7 +23,7 @@ await confirmTransaction(airdropTx);
 
 
 
-async function getSolBalance(pg:Program<OmertaPresale>,address:anchor.web3.PublicKey):Promise<number>{
+async function getSolBalance(pg:Program<SolanaPresale>,address:anchor.web3.PublicKey):Promise<number>{
   let initialBalance: number;
   try {   
     const balance = (await pg.provider.connection.getBalance(address))
@@ -35,14 +35,14 @@ async function getSolBalance(pg:Program<OmertaPresale>,address:anchor.web3.Publi
   return initialBalance;
 }
 
-describe("omerta presale testcases", () => {
+describe("solana presale testcases", () => {
   
 
   // Configure the client to use the local cluster.
   anchor.setProvider(anchor.AnchorProvider.env());
 
-  const program = anchor.workspace.OmertaPresale as Program<OmertaPresale>;
-  const token = anchor.workspace.OmertaSolanaSpl as Program<OmertaSolanaSpl>;
+  const program = anchor.workspace.SolanaPresale as Program<SolanaPresale>;
+  const token = anchor.workspace.SolanaSpl as Program<SolanaSpl>;
   const TOKEN_METADATA_PROGRAM_ID = new anchor.web3.PublicKey(
     "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s" // metaplex metadata program id
   )
@@ -52,9 +52,9 @@ describe("omerta presale testcases", () => {
     uri: "https://pump.mypinata.cloud/ipfs/QmeSzchzEPqCU1jwTnsipwcBAeH7S4bmVvFGfF65iA1BY1?img-width=128&img-dpr=2&img-onerror=redirect",
     decimals: 6,
   };
-  const MINT_SEED = "omerta-mint";
+  const MINT_SEED = "token-mint";
   const DATA_SEED = "my_data";
-  const PRESALE_SEED = "omerta_presale";
+  const PRESALE_SEED = "solana_presale";
   const [mint] = anchor.web3.PublicKey.findProgramAddressSync(
     [Buffer.from(MINT_SEED)],
     token.programId
@@ -114,6 +114,7 @@ it("init token",async()=>{
     const startPresaleContext = {
       signer:account1,
       presale:presalePda,
+      tokenMint:mint,
       systemProgram: anchor.web3.SystemProgram.programId,
       
     }
@@ -157,7 +158,7 @@ it("init token",async()=>{
 
 
 
-  it("set token address in presale",async()=>{
+  it("update token address in presale",async()=>{
  
     const context = {
       tokenMint:mint,
@@ -165,7 +166,7 @@ it("init token",async()=>{
       signer:account1,
     };
     await program.methods
-      .setTokenAddress()
+      .updateTokenAddress()
       .accounts(context)
       .rpc();
   })
@@ -202,12 +203,28 @@ it("init token",async()=>{
       [Buffer.from(DATA_SEED),account2.publicKey.toBuffer()],
       program.programId
     );
+   
+    const reciever_ata = anchor.utils.token.associatedAddress({
+      mint: mint,
+      owner: account2.publicKey,
+    });
+    const presale_ata = anchor.utils.token.associatedAddress({
+      mint: mint,
+      owner: presalePda,
+    });
+
+  
     const context = {
       data:dataPda,
       from:account2.publicKey,
       presale:presalePda,
+      signer:account2.publicKey,
+      presaleTokenAccount:presale_ata,
+      tokenMint:mint,
+      signerTokenAccount:reciever_ata,
       systemProgram: anchor.web3.SystemProgram.programId,
-
+      tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+      associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
     }
 
     // Add your test here.
@@ -218,128 +235,14 @@ it("init token",async()=>{
 
     // let solBalance = await program.account.presaleInfo.fetch(presalePda)
     // assert.equal(Number(solBalance.amountRaised),2*1e9);
-    // const data = await program.account.investmentData.fetch(dataPda)
-    // console.log(Number(data.numberOfTokens))
-
-  })
-  it("fail claim tokens",async()=>{
-    try{
-    const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from(DATA_SEED),account2.publicKey.toBuffer()],
-      program.programId
-    );
-    const reciever_ata = anchor.utils.token.associatedAddress({
-      mint: mint,
-      owner: account2.publicKey,
-    });
-    const presale_ata = anchor.utils.token.associatedAddress({
-      mint: mint,
-      owner: presalePda,
-    });
-
-    const context = {
-      data:dataPda,
-      presale:presalePda,
-      signer:account2.publicKey,
-      presaleTokenAccount:presale_ata,
-      tokenMint:mint,
-      signerTokenAccount:reciever_ata,
-      systemProgram: anchor.web3.SystemProgram.programId,
-      tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-      associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
-    }
-
-    // Add your test here.
-    await program.methods.claimTokens()        
-    .accounts(context)
-    .signers([account2])
-    .rpc();
-  }catch(e){
-    if (e instanceof anchor.AnchorError){
-    assert(e.message.includes("PresaleHasNotEndedYet"))
-  }else{
-    assert(false);
-  }
-}
-  })
-  it("claim tokens",async()=>{
-    await sleep(7)
-    const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from(DATA_SEED),account2.publicKey.toBuffer()],
-      program.programId
-    );
-    const reciever_ata = anchor.utils.token.associatedAddress({
-      mint: mint,
-      owner: account2.publicKey,
-    });
-    const presale_ata = anchor.utils.token.associatedAddress({
-      mint: mint,
-      owner: presalePda,
-    });
-
-    const context = {
-      data:dataPda,
-      presale:presalePda,
-      signer:account2.publicKey,
-      presaleTokenAccount:presale_ata,
-      tokenMint:mint,
-      signerTokenAccount:reciever_ata,
-      systemProgram: anchor.web3.SystemProgram.programId,
-      tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-      associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
-    }
-
-    // Add your test here.
-    await program.methods.claimTokens()        
-    .accounts(context)
-    .signers([account2])
-    .rpc();
     const data = await program.account.investmentData.fetch(dataPda)
     const balance = (await program.provider.connection.getTokenAccountBalance(reciever_ata))
     assert.equal(Number(balance.value.amount),Number(data.numberOfTokens))
     assert.equal(Number(account2Investment),Number(data.amount))
   })
+ 
 
-  it("fail already claim tokens",async()=>{
-    try{
-    const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from(DATA_SEED),account2.publicKey.toBuffer()],
-      program.programId
-    );
-    const reciever_ata = anchor.utils.token.associatedAddress({
-      mint: mint,
-      owner: account2.publicKey,
-    });
-    const presale_ata = anchor.utils.token.associatedAddress({
-      mint: mint,
-      owner: presalePda,
-    });
 
-    const context = {
-      data:dataPda,
-      presale:presalePda,
-      signer:account2.publicKey,
-      presaleTokenAccount:presale_ata,
-      tokenMint:mint,
-      signerTokenAccount:reciever_ata,
-      systemProgram: anchor.web3.SystemProgram.programId,
-      tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-      associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
-    }
-
-    // Add your test here.
-    await program.methods.claimTokens()        
-    .accounts(context)
-    .signers([account2])
-    .rpc();
-  }catch(e){
-    if (e instanceof anchor.AnchorError){
-      assert(e.message.includes("AlreadyClaimed"))
-    }else{
-      assert(false);
-    }
-  }
-  })
 
   it("fail withdraw sol",async()=>{
     try{
@@ -384,7 +287,8 @@ it("init token",async()=>{
   })
 
   it("withdraw tokens",async()=>{
- 
+    await sleep(7)
+
     const reciever_ata = anchor.utils.token.associatedAddress({
       mint: mint,
       owner: account1,

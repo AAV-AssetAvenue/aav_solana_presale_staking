@@ -3,7 +3,7 @@ use anchor_spl::{associated_token::AssociatedToken, token::{transfer, Mint, Toke
 declare_id!("G7n94bhEkqKwBkgqVALJ2AzPrugaca5XH2pWw3xy88xB");
 
 #[program]
-pub mod omerta_presale {
+pub mod solana_presale {
 
 
     use super::*;
@@ -23,9 +23,11 @@ pub mod omerta_presale {
         presale.price_per_token = price_per_token;
         presale.is_live = true;
         presale.amount_raised = 0;
+        presale.token_mint =  ctx.accounts.token_mint.key();
         presale.authority = ctx.accounts.signer.key();
         Ok(())
     }
+  
     pub fn stop_presale(ctx: Context<StopPresale>) -> Result<()> {
         
         let presale = &mut ctx.accounts.presale;
@@ -35,7 +37,7 @@ pub mod omerta_presale {
         Ok(())
     }
 
-    pub fn set_token_address(ctx: Context<SetTokenAddress>) -> Result<()>{
+    pub fn update_token_address(ctx: Context<UpdateTokenAddress>) -> Result<()>{
         let presale = &mut ctx.accounts.presale;
         presale.token_mint =  ctx.accounts.token_mint.key();
 
@@ -82,23 +84,6 @@ pub mod omerta_presale {
             ],
         )?;
 
-        Ok(())
-    }
-
-    pub fn claim_tokens(ctx: Context<ClaimTokens>) -> Result<()> {
-        let presale_data = &ctx.accounts.presale;
-        require!(presale_data.is_live, CustomError::PresaleNotLive);
-
-        // Ensure the presale has ended before allowing token claims
-        let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
-        require!(cur_timestamp > presale_data.end_time, CustomError::PresaleHasNotEndedYet);
-
-        let tokens_to_claim = ctx.accounts.data.number_of_tokens;
-        require!(tokens_to_claim > 0, CustomError::YouHaveNotInvestedInPresale);
-        require!(!ctx.accounts.data.has_claimed, CustomError::AlreadyClaimed);
-
-        ctx.accounts.data.has_claimed = true;
-        
         transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -109,12 +94,13 @@ pub mod omerta_presale {
                 },
                 &[&[PRESALE_SEED, &[ctx.bumps.presale]][..]],
             ),
-            tokens_to_claim,
+            number_of_tokens,
         )?;
-        
+
         Ok(())
     }
-   
+
+ 
     pub fn withdraw_tokens(ctx: Context<WithdrawTokens>) -> Result<()> {
         let presale_data = &ctx.accounts.presale;
         require!(presale_data.is_live, CustomError::PresaleNotLive);
@@ -139,6 +125,7 @@ pub mod omerta_presale {
         
         Ok(())
     }
+   
     pub fn withdraw_sol(ctx: Context<WithdrawSol>) -> Result<()> {
 
         let presale = &mut ctx.accounts.presale.to_account_info();
@@ -171,7 +158,7 @@ pub mod omerta_presale {
 
 
 
-pub const PRESALE_SEED:&[u8] = "omerta_presale".as_bytes();
+pub const PRESALE_SEED:&[u8] = "solana_presale".as_bytes();
 pub const DATA_SEED:&[u8] = "my_data".as_bytes();
 
 #[account]
@@ -179,11 +166,11 @@ pub const DATA_SEED:&[u8] = "my_data".as_bytes();
 pub struct PresaleInfo {
     pub goal: u64,
     pub token_mint: Pubkey,
-    pub amount_raised: u64,
-    pub total_tokens_sold: u64,
+    pub amount_raised: u64, // total sol raised
+    pub total_tokens_sold: u64, // total token sold
     pub start_time: u64,
     pub end_time: u64,
-    pub price_per_token: u64,
+    pub price_per_token: u64, // price per token in sol
     pub is_live:bool,
     pub authority:Pubkey
 }
@@ -194,7 +181,6 @@ pub struct PresaleInfo {
 pub struct InvestmentData {
     pub amount: u64,
     pub number_of_tokens: u64,
-    pub has_claimed: bool
 }
 
 #[derive(Accounts)]
@@ -211,7 +197,11 @@ pub struct StartPresale<'info> {
         bump
     )]
     pub presale: Box<Account<'info, PresaleInfo>>,
- 
+    #[account(
+        constraint = token_mint.is_initialized == true,
+    )]
+    pub token_mint: Box<Account<'info, Mint>>, // Token mint account
+
 
     #[account(mut)]
     pub signer: Signer<'info>,
@@ -247,8 +237,40 @@ pub struct Invest<'info> {
         bump
     )]
     pub presale: Box<Account<'info,PresaleInfo>>,
+    
+
+
+
+    #[account(
+        mut,
+        associated_token::mint = token_mint,
+        associated_token::authority = presale.key()
+    )]
+    pub presale_token_account: Box<Account<'info, TokenAccount>>,
+    
+    #[account(
+        init_if_needed,
+        payer = signer,
+        associated_token::mint = token_mint,
+        associated_token::authority = signer,
+    )]
+    pub signer_token_account: Box<Account<'info, TokenAccount>>,
+
+ 
+
+    #[account(mut)]
+    pub signer: Signer<'info>,
+
+
+    #[account(mut)]
+    pub token_mint: Box<Account<'info, Mint>>, 
+   
+
+    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
 }
+
 
 
 
@@ -270,49 +292,6 @@ pub struct WithdrawSol<'info> {
 }
 
 
-#[derive(Accounts)]
-pub struct ClaimTokens<'info> {
-    #[account(
-        mut,
-        seeds = [DATA_SEED, signer.key().as_ref()],
-        bump,
-    )]
-    pub data: Account<'info, InvestmentData>,
-
-    #[account(
-        mut,
-        associated_token::mint = token_mint,
-        associated_token::authority = presale.key()
-    )]
-    pub presale_token_account: Box<Account<'info, TokenAccount>>,
-    
-    #[account(
-        init_if_needed,
-        payer = signer,
-        associated_token::mint = token_mint,
-        associated_token::authority = signer,
-    )]
-    pub signer_token_account: Box<Account<'info, TokenAccount>>,
-
-    #[account(
-        mut,
-        seeds = [PRESALE_SEED],
-        bump,
-    )]
-    pub presale: Box<Account<'info, PresaleInfo>>,
-
-    #[account(mut)]
-    pub signer: Signer<'info>,
-
-
-    #[account(mut)]
-    pub token_mint: Box<Account<'info, Mint>>, 
-   
-
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-}
 
 
 #[derive(Accounts)]
@@ -358,7 +337,7 @@ pub struct WithdrawTokens<'info> {
 
 
 #[derive(Accounts)]
-pub struct SetTokenAddress<'info> {
+pub struct UpdateTokenAddress<'info> {
     #[account(
         constraint = token_mint.is_initialized == true,
     )]
