@@ -120,7 +120,7 @@ it("init token",async()=>{
     }
 
     // Add your test here.
-    await program.methods.startPresale(
+    await program.methods.initializer(
       new BN(goal), // goal
       new BN(date), // startTime
       new BN(endDate), // endTime
@@ -287,7 +287,7 @@ it("init token",async()=>{
   })
 
   it("withdraw tokens",async()=>{
-    await sleep(7)
+    // await sleep(7)
 
     const reciever_ata = anchor.utils.token.associatedAddress({
       mint: mint,
@@ -310,7 +310,7 @@ it("init token",async()=>{
     }
 
     // Add your test here.
-    await program.methods.withdrawTokens()        
+    await program.methods.emergencyWithdrawTokens()        
     .accounts(context)
     .rpc();
     const balance = (await program.provider.connection.getTokenAccountBalance(reciever_ata))

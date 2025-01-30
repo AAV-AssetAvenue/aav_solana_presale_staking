@@ -8,7 +8,7 @@ pub mod solana_presale {
 
     use super::*;
 
-    pub fn start_presale(
+    pub fn initializer(
         ctx: Context<StartPresale>,
         goal: u64,
         start_time: u64,
@@ -28,22 +28,8 @@ pub mod solana_presale {
         Ok(())
     }
   
-    pub fn stop_presale(ctx: Context<StopPresale>) -> Result<()> {
-        
-        let presale = &mut ctx.accounts.presale;
-        require!(!presale.is_live, CustomError::PresaleAlreadyStopped); 
-
-        presale.is_live = false;
-        Ok(())
-    }
-
-    pub fn update_token_address(ctx: Context<UpdateTokenAddress>) -> Result<()>{
-        let presale = &mut ctx.accounts.presale;
-        presale.token_mint =  ctx.accounts.token_mint.key();
-
-        Ok(())
-    }
-    
+ 
+    // function for users to invest in presale using sol and get tokens in return.
     pub fn invest_sol(ctx: Context<Invest>, value: u64) -> Result<()> {
         let presale_data = &mut ctx.accounts.presale;
         
@@ -100,15 +86,27 @@ pub mod solana_presale {
         Ok(())
     }
 
- 
-    pub fn withdraw_tokens(ctx: Context<WithdrawTokens>) -> Result<()> {
-        let presale_data = &ctx.accounts.presale;
-        require!(presale_data.is_live, CustomError::PresaleNotLive);
 
-        // Ensure the presale has ended before allowing token claims
-        let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
-        require!(cur_timestamp > presale_data.end_time, CustomError::PresaleHasNotEndedYet);
+    ////////////////////////////////////////////////////////////
+    //                        Admin functions
+    ////////////////////////////////////////////////////////////
+    pub fn stop_presale(ctx: Context<StopPresale>) -> Result<()> {
+        
+        let presale = &mut ctx.accounts.presale;
+        require!(!presale.is_live, CustomError::PresaleAlreadyStopped); 
 
+        presale.is_live = false;
+        Ok(())
+    }
+
+    pub fn update_token_address(ctx: Context<UpdateTokenAddress>) -> Result<()>{
+        let presale = &mut ctx.accounts.presale;
+        presale.token_mint =  ctx.accounts.token_mint.key();
+
+        Ok(())
+    }
+    // emergency function for admin to withdraw tokens from presale. should be used in emergency scenario.
+    pub fn emergency_withdraw_tokens(ctx: Context<WithdrawTokens>) -> Result<()> {
         
         transfer(
             CpiContext::new_with_signer(
@@ -125,7 +123,7 @@ pub mod solana_presale {
         
         Ok(())
     }
-   
+    // function for admin to withdraw sol from contract.
     pub fn withdraw_sol(ctx: Context<WithdrawSol>) -> Result<()> {
 
         let presale = &mut ctx.accounts.presale.to_account_info();
