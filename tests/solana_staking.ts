@@ -21,28 +21,7 @@ let airdropTx = await anchor.getProvider().connection.requestAirdrop(publicKey, 
 await confirmTransaction(airdropTx);
 }
 
-async function advanceBlocktime(seconds: number) {
-  const provider = anchor.AnchorProvider.local();
-  const connection = provider.connection;
 
-  // Get the current block timestamp
-  let slot = await connection.getSlot();
-  let blockTime = await connection.getBlockTime(slot);
-
-  if (!blockTime) {
-      throw new Error("Could not fetch block time.");
-  }
-
-  let newTime = blockTime + seconds;
-
-  // Increase the slot number to simulate time passing
-  const slotsToAdvance = Math.ceil(seconds / 0.4); // 1 slot = ~400ms (depends on network)
-  for (let i = 0; i < slotsToAdvance; i++) {
-      await airdropSol(provider.wallet.publicKey, 1_000_000_000);
-  }
-
-  console.log(`⏳ Time increased by ${seconds} seconds (Slots: ${slotsToAdvance})`);
-}
 
 
 
@@ -212,11 +191,10 @@ it("un stake",async()=>{
     staking:stakingPda,
   }
   // Add your test here.
-  await program.methods.allowClaiming()        
+  await program.methods.allowClaiming(true)        
   .accounts(context1)
   .rpc();
 
-  await   advanceBlocktime(86400);
 
    const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
          [Buffer.from(DATA_SEED),account1.toBuffer()],

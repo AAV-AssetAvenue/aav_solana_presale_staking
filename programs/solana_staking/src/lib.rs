@@ -19,15 +19,12 @@ pub mod solana_staking {
         staking.token_mint = ctx.accounts.token_mint.key();
         staking.authority = ctx.accounts.signer.key();
         staking.staking_start_date = cur_timestamp;
-        staking.is_locked = true;
+        staking.allow_claiming = false;
         Ok(())
     }
     pub fn allow_claiming(ctx: Context<UnlockStaking>,toggle:bool) -> Result<()> {
         let staking = &mut ctx.accounts.staking;
-    
-        staking.is_locked = toggle;
-        msg!("Staking has been unlocked.");
-    
+        staking.allow_claiming = toggle;    
         Ok(())
     }
     pub fn stop_staking(ctx: Context<StopStaking>,toggle:bool) -> Result<()> {
@@ -73,51 +70,55 @@ pub mod solana_staking {
 
     pub fn unstake_tokens(ctx: Context<Unstake>) -> Result<()> {
         msg!("Instruction: Unstake");
-    
+        
         let staking = &mut ctx.accounts.staking;
-        require!(!staking.is_locked, CustomError::ClaimLocked);
-    
+        require!(staking.allow_claiming, CustomError::ClaimLocked);
+        
         let user_info = &mut ctx.accounts.staking_data;
         let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
-    
+        
         let staked_amount = user_info.total_staking_balance;
-        let user_share = staked_amount as f64 / staking.total_tokens_staked as f64;
-        msg!("user_share {}",user_share);
-
-        // Define the reward structure (monthly increasing rewards)
-        let daily_rewards = [
-            12671, 13014, 13356, 13699, 14041, 14384, 14726, 15068, 15411, 15753, 16096, 16438
-        ];
-    
-        // Calculate the number of days staked
-        let stake_duration_days = (cur_timestamp - user_info.stake_date) / (24 * 60 * 60);
-        msg!("stake_duration_days {}",stake_duration_days);
+        let user_share = (staked_amount * PRECISION) / staking.total_tokens_staked;
         
-        let staking_start_date = staking.staking_start_date; // Assume this is when the staking contract started
-        msg!("staking_start_date {}",staking_start_date);
+        let time_diff = (cur_timestamp - user_info.stake_date) * TIME_PRECISION;
+        let staking_start_date = staking.staking_start_date;
+        
+       
+        
+        // Use scaled values to prevent precision loss
+        let stake_duration_days = ((time_diff + (DAY_DURATION / 2)) / DAY_DURATION) as u64;
+        
         let mut reward_accumulated: u64 = 0;
-    
         let mut remaining_days = stake_duration_days;
-        let mut current_month = ((user_info.stake_date - staking_start_date) / (30 * 24 * 60 * 60)) as usize;
         
-        while remaining_days > 0 && current_month < daily_rewards.len() {
-            let daily_reward = daily_rewards[current_month] as f64;
+        let mut current_month = (((user_info.stake_date - staking_start_date) * TIME_PRECISION + (MONTH_DURATION / 2)) / MONTH_DURATION) as usize;
+        
+        while remaining_days > 0 && current_month < DAILY_REWARDS_LEN {
+            let daily_reward = DAILY_REWARDS[current_month];
             let days_in_month = std::cmp::min(remaining_days, 30);
-    
-            reward_accumulated += (user_share * daily_reward * days_in_month as f64) as u64;
-    
-            remaining_days -= days_in_month;
-            current_month += 1;
+        
+            let scaled_reward = (user_share * daily_reward * days_in_month) / PRECISION;
+        
+            reward_accumulated = reward_accumulated
+                .checked_add(scaled_reward)
+                .ok_or(CustomError::Overflow)?;
+        
+            remaining_days = remaining_days.checked_sub(days_in_month).ok_or(CustomError::Overflow)?;
+            current_month = current_month.checked_add(1).ok_or(CustomError::Overflow)?;
         }
-    
-        msg!("Unstaking {} tokens with {} rewards", staked_amount, reward_accumulated);
-    
-        user_info.total_staking_balance = user_info.total_staking_balance.checked_sub(staked_amount).ok_or(CustomError::Overflow)?;
-        user_info.total_reward_paid = user_info.total_reward_paid.checked_add(reward_accumulated).ok_or(CustomError::Overflow)?;
-        staking.total_tokens_staked = staking.total_tokens_staked.checked_sub(staked_amount).ok_or(CustomError::Overflow)?;
-    
-        let total_payable = staked_amount.checked_add(reward_accumulated).ok_or(CustomError::Overflow)?;
-        msg!("Total payable {} tokens", total_payable);
+
+        // Ensure minimum 1-day reward if stake_duration_days > 0 but reward_accumulated is 0
+        if stake_duration_days >= 1 && reward_accumulated == 0 {
+            let daily_reward = DAILY_REWARDS[0]; // Use first month's reward rate
+            let min_reward = (user_share * daily_reward) / PRECISION;
+            reward_accumulated = min_reward;
+        }
+        
+        let total_payable = staked_amount
+            .checked_add(reward_accumulated)
+            .ok_or(CustomError::Overflow)?;
+
+        
         transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -133,13 +134,19 @@ pub mod solana_staking {
     
         Ok(())
     }
-   
 }
 
 // Constants
 pub const STAKING_SEED:&[u8] = "solana_staking".as_bytes();
 pub const STAKING_DATA_SEED:&[u8] = "staking_user_data".as_bytes();
-
+pub const DAILY_REWARDS:[u64; 12] = [
+    12671000000, 13014000000, 13356000000, 13699000000, 14041000000, 14384000000, 14726000000, 15068000000, 15411000000, 15753000000, 16096000000, 16438000000
+];
+pub const DAILY_REWARDS_LEN:usize = DAILY_REWARDS.len();
+pub const PRECISION:u64 = 1_000_000; // Match token decimals
+const TIME_PRECISION: u64 = 1_000_000; // Scaling factor for precise time calculations
+pub const MONTH_DURATION:u64 = (30 * 24 * 60 * 60) * TIME_PRECISION;
+pub const DAY_DURATION:u64 = (24 * 60 * 60) * TIME_PRECISION;
 #[derive(Accounts)]
 pub struct UnlockStaking<'info> {
     #[account(
@@ -163,7 +170,7 @@ pub struct StakingInfo {
     pub total_tokens_rewarded: u64,
     pub staking_start_date: u64,
     pub is_live:bool,
-    pub is_locked:bool,
+    pub allow_claiming:bool,
     pub authority:Pubkey
 }
 
