@@ -326,6 +326,21 @@ it("init token",async()=>{
     assert.equal(Number(presaleBalance.value.amount),Number(0))
   })
 
+  it("transfer tokens to presale", async () => {
 
+
+    const context = {
+      presale:presalePda,
+      signer:account1
+    };
+
+     await program.methods
+      .togglePresale(false)
+      .accounts(context)
+      .rpc();
+      const data = await program.account.presaleInfo.fetch(presalePda)
+      assert.equal(data.isLive,false)
+
+  });
  
 });

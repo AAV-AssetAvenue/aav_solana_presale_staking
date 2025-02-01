@@ -101,7 +101,7 @@ pub mod solana_presale {
         Ok(())
     } 
 
-    pub fn stop_presale(ctx: Context<StopPresale>,toggle:bool) -> Result<()> {
+    pub fn toggle_presale(ctx: Context<StopPresale>,toggle:bool) -> Result<()> {
         
         let presale = &mut ctx.accounts.presale;
 
@@ -393,20 +393,8 @@ pub enum CustomError {
     PresaleNotLive,
     #[msg("Presale not started")]
     PresaleNotStarted,
-    #[msg("Presale has end")]
-    PresaleHasEnd,
     #[msg("Unauthorized")]
     Unauthorized,
-    #[msg("Presale already stopped")]
-    PresaleAlreadyStopped,
-    #[msg("Presale has not ended yet")]
-    PresaleHasNotEndedYet,
-    #[msg("You Have Not Invested In Presale")]
-    YouHaveNotInvestedInPresale,
-    #[msg("Already claimed")]
-    AlreadyClaimed,
-    #[msg("Can not Ivest More Or Goal Reached")]
-    CanNotIvestMoreOrGoalReached,
     #[msg("AlreadyInitialized")]
     AlreadyInitialized,
     #[msg("WrongTime")]

@@ -25,8 +25,7 @@ await confirmTransaction(airdropTx);
 type userData = {
   totalStakingBalance: anchor.BN;
   stakeDate: anchor.BN;
-  totalRewardPaid: anchor.BN;
-  owner: anchor.web3.PublicKey;
+  isFirstTime: boolean;
 }
 type stakingInfo= {
   tokenMint: anchor.web3.PublicKey;
@@ -217,6 +216,10 @@ it("stake",async()=>{
        await program.methods.stake(stakingAmount)        
        .accounts(context)
        .rpc(); 
+
+       
+        const userData = await program.account.stakingData.fetch(dataPda);
+        assert.equal(userData.isFirstTime,true);
 })
 
 

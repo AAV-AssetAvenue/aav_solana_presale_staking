@@ -41,7 +41,6 @@ pub mod solana_staking {
             let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
             user_info.stake_date = cur_timestamp;
             user_info.is_first_time = true;
-            user_info.owner = ctx.accounts.signer.key();
         }
 
         user_info.total_staking_balance = user_info.total_staking_balance.checked_add(amount).ok_or(CustomError::Overflow)?;
@@ -64,37 +63,36 @@ pub mod solana_staking {
         Ok(())
     }
 
-    // if allow_claiming is true, then unstake will be callable
+    // if allow_claiming is true, then this function will be callable
     pub fn unstake_and_claim_rewards(ctx: Context<Unstake>) -> Result<()> {
         
         let staking = &mut ctx.accounts.staking;
         require!(staking.allow_claiming, CustomError::ClaimLocked);
         
         let user_info = &mut ctx.accounts.staking_data;
-        let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
+        require!(user_info.total_staking_balance > 0, CustomError::ZeroAmount);
+
         let user_start_date =   user_info.stake_date;
         
         let staked_amount = user_info.total_staking_balance;
         let total_tokens_staked = staking.total_tokens_staked;
         
         let user_share = (staked_amount * PRECISION) / total_tokens_staked;
-        let time_diff = (cur_timestamp - user_start_date) * PRECISION;
-        let staking_start_date = staking.staking_start_date;
         
-        // Use scaled values to prevent precision loss
+        let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
+        let time_diff = (cur_timestamp - user_start_date) * PRECISION;
+                
         let stake_duration_days = ((time_diff + (DAY_DURATION / 2)) / DAY_DURATION) as u64;
         
         let mut reward_accumulated: u64 = 0;
         let mut remaining_days = stake_duration_days;
         
-        let mut current_month = (((user_start_date - staking_start_date) * PRECISION + (MONTH_DURATION / 2)) / MONTH_DURATION) as usize;
-        msg!("current_month:{}", current_month);
+        let mut current_month = (((user_start_date - staking.staking_start_date) * PRECISION + (MONTH_DURATION / 2)) / MONTH_DURATION) as usize;
 
         while remaining_days > 0 && current_month < DAILY_REWARDS_LEN {
             let daily_reward = DAILY_REWARDS[current_month];
             let days_in_month = std::cmp::min(remaining_days, 30);
         
-            msg!("days_in_month: {},{}", days_in_month,remaining_days);
             let scaled_reward = (user_share * daily_reward * days_in_month) / PRECISION;
         
             reward_accumulated = reward_accumulated
@@ -111,11 +109,18 @@ pub mod solana_staking {
             let min_reward = (user_share * daily_reward) / PRECISION;
             reward_accumulated = min_reward;
         }
+
         require!(reward_accumulated > 0, CustomError::NoRewards);
         msg!("Reward accumulated: {}", reward_accumulated);
+        
         let total_payable = staked_amount
             .checked_add(reward_accumulated)
             .ok_or(CustomError::Overflow)?;
+
+        staking.total_tokens_staked = staking.total_tokens_staked.checked_sub(staked_amount).ok_or(CustomError::Overflow)?;
+        staking.total_tokens_rewarded = staking.total_tokens_rewarded.checked_add(reward_accumulated).ok_or(CustomError::Overflow)?;
+        user_info.total_staking_balance = 0;
+        user_info.is_first_time = false;
 
         transfer(
             CpiContext::new_with_signer(
@@ -139,13 +144,18 @@ pub mod solana_staking {
         Ok(())
     }
 
-    pub fn stop_staking(ctx: Context<StopStaking>,toggle:bool) -> Result<()> {
+    pub fn stop_staking(ctx: Context<UnlockStaking>,toggle:bool) -> Result<()> {
         let staking = &mut ctx.accounts.staking;
         staking.is_live = toggle;
         Ok(())
     }
+   
+    pub fn update_token_address(ctx: Context<UpdateTokenAddress>) -> Result<()>{
+        let staking = &mut ctx.accounts.staking;
+        staking.token_mint =  ctx.accounts.token_mint.key();
 
-
+        Ok(())
+    }
      // emergency function for admin to withdraw tokens from staking. should be used in emergency scenario.
      pub fn emergency_withdraw_tokens(ctx: Context<WithdrawTokens>) -> Result<()> {
         
@@ -198,8 +208,6 @@ pub struct StakingData {
     pub total_staking_balance: u64,
     pub stake_date: u64,
     pub is_first_time: bool,
-    pub total_reward_paid: u64,
-    pub owner: Pubkey,
 }
 
 
@@ -309,6 +317,30 @@ pub struct WithdrawTokens<'info> {
 
 
 #[derive(Accounts)]
+pub struct UpdateTokenAddress<'info> {
+    #[account(
+        constraint = token_mint.is_initialized == true,
+    )]
+    pub token_mint: Box<Account<'info, Mint>>, // Token mint account
+
+    #[account(
+        mut,
+        seeds = [STAKING_SEED],
+        bump
+    )]
+    pub staking: Box<Account<'info,StakingInfo>>,
+    
+
+
+    #[account(
+        mut,
+        constraint = signer.key() == staking.authority.key() @ CustomError::Unauthorized,
+    )]
+    pub signer: Signer<'info>,
+    
+}
+
+#[derive(Accounts)]
 
 pub struct Unstake<'info> {
     #[account(
@@ -320,6 +352,7 @@ pub struct Unstake<'info> {
 
     #[account(mut)]
     pub from: Signer<'info>,
+
     #[account(
         mut,
         seeds = [STAKING_SEED],
@@ -346,10 +379,7 @@ pub struct Unstake<'info> {
     pub signer_token_account: Box<Account<'info, TokenAccount>>,
 
  
-    #[account(
-        mut,
-        constraint = signer.key() == staking_data.owner @ CustomError::Unauthorized,
-    )]
+    #[account(mut)]
     pub signer: Signer<'info>,
 
 
@@ -378,22 +408,7 @@ pub struct UnlockStaking<'info> {
     )]
     pub signer: Signer<'info>,
 }
-#[derive(Accounts)]
-pub struct StopStaking<'info> {
-    #[account(
-        mut,
-        seeds = [STAKING_SEED],
-        bump
-    )]
-    pub staking: Box<Account<'info, StakingInfo>>,
 
-    #[account(
-        mut,
-        constraint = signer.key() == staking.authority.key() @ CustomError::Unauthorized,
-    )]
-    pub signer: Signer<'info>,
-    
-}
 
 
 #[derive(Accounts)]
@@ -431,16 +446,8 @@ pub enum CustomError {
     StakingNotLive,
     #[msg("Unauthorized")]
     Unauthorized,
-    #[msg("Staking already stopped")]
-    StakingAlreadyStopped,
     #[msg("Zero staking amount")]
     ZeroAmount,
-    #[msg("Invalid staking duration")]
-    InvalidStakingDuration,
-    #[msg("Invalid Staking Id")]
-    InvalidStakingId,
-    #[msg("Staking is still locked")]
-    StakingStillLocked,
     #[msg("Overflow error in reward calculation")]
     Overflow,
     #[msg("ClaimLocked")]
