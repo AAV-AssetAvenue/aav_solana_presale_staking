@@ -149,6 +149,9 @@ it("init token",async()=>{
       .mintTokens(new anchor.BN((mintAmount * 10 ** metadata.decimals).toString()))
       .accounts(mintContext)
       .rpc();
+
+      const balance = (await program.provider.connection.getTokenAccountBalance(payer_ata))
+      assert.equal(Number(balance.value.amount),mintAmount* 10 ** metadata.decimals)
   })
 
 
@@ -191,6 +194,9 @@ it("init token",async()=>{
       .transfer(new anchor.BN((transferAmount * 10 ** metadata.decimals).toString()))
       .accounts(context)
       .rpc();
+
+      const balance = (await program.provider.connection.getTokenAccountBalance(reciever_ata))
+      assert.equal(Number(balance.value.amount),transferAmount* 10 ** metadata.decimals)
   });
 
   it("invest sol",async()=>{
@@ -222,17 +228,20 @@ it("init token",async()=>{
       associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
     }
 
+    const presaleBalance = (await program.provider.connection.getTokenAccountBalance(presale_ata))
     // Add your test here.
     await program.methods.investSol(account2Investment)        
     .accounts(context)
     .signers([account2])
     .rpc();
-
+    
+    const afterPresaleBalance = (await program.provider.connection.getTokenAccountBalance(presale_ata))
     // let solBalance = await program.account.presaleInfo.fetch(presalePda)
     // assert.equal(Number(solBalance.amountRaised),2*1e9);
     const data = await program.account.investmentData.fetch(dataPda)
     const balance = (await program.provider.connection.getTokenAccountBalance(reciever_ata))
     assert.equal(Number(balance.value.amount),Number(data.numberOfTokens))
+    assert.equal(Number(presaleBalance.value.amount)-Number(data.numberOfTokens),Number(afterPresaleBalance.value.amount))
     assert.equal(Number(account2Investment),Number(data.solInvestmentAmount))
   })
  
@@ -310,10 +319,11 @@ it("init token",async()=>{
     .accounts(context)
     .rpc();
     const balance = (await program.provider.connection.getTokenAccountBalance(reciever_ata))
+    const presaleBalance = (await program.provider.connection.getTokenAccountBalance(presale_ata))
     const data = await program.account.presaleInfo.fetch(presalePda)
 
     assert.equal(Number(balance.value.amount),Number(mintAmount* 10 ** metadata.decimals- Number(data.totalTokensSold)))
-    // assert.equal(Number(account2Investment),Number(data.amount))
+    assert.equal(Number(presaleBalance.value.amount),Number(0))
   })
 
 

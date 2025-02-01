@@ -93,12 +93,19 @@ pub mod solana_presale {
     ////////////////////////////////////////////////////////////
     //                        Admin functions
     ////////////////////////////////////////////////////////////
-    pub fn stop_presale(ctx: Context<StopPresale>) -> Result<()> {
+    pub fn change_price(ctx: Context<StopPresale>,price:u64) -> Result<()> {
         
         let presale = &mut ctx.accounts.presale;
-        require!(!presale.is_live, CustomError::PresaleAlreadyStopped); 
 
-        presale.is_live = false;
+        presale.price_per_token_in_sol = price;
+        Ok(())
+    } 
+
+    pub fn stop_presale(ctx: Context<StopPresale>,toggle:bool) -> Result<()> {
+        
+        let presale = &mut ctx.accounts.presale;
+
+        presale.is_live = toggle;
         Ok(())
     }
     // update presale token mint address 
