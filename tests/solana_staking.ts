@@ -89,14 +89,11 @@ describe("solana staking testcases", () => {
 
   const program = anchor.workspace.SolanaStaking as Program<SolanaStaking>;
   const token = anchor.workspace.SolanaSpl as Program<SolanaSpl>;
-  const TOKEN_METADATA_PROGRAM_ID = new anchor.web3.PublicKey(
-    "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s" // metaplex metadata program id
-  )
   const metadata = {
     name: "lamport Token",
     symbol: "LMT",
     uri: "https://pump.mypinata.cloud/ipfs/QmeSzchzEPqCU1jwTnsipwcBAeH7S4bmVvFGfF65iA1BY1?img-width=128&img-dpr=2&img-onerror=redirect",
-    decimals: 6,
+    decimals: 5,
   };
   const MINT_SEED = "token-mint";
   const DATA_SEED = "staking_user_data";
@@ -109,7 +106,7 @@ describe("solana staking testcases", () => {
  
   const account1 = program.provider.publicKey
   const account2 = anchor.web3.Keypair.generate()
-  const stakingAmount= new BN(2*1e6)
+  const stakingAmount= new BN(2e5) // 2 tokens
 
   const [stakingPda] = anchor.web3.PublicKey.findProgramAddressSync(
     [Buffer.from(STAKING_SEED)],
@@ -144,15 +141,12 @@ describe("solana staking testcases", () => {
 
 
     const data = await program.account.stakingInfo.fetch(stakingPda)
-    // assert.equal(endDate,Number(data.endTime));
-    // assert.equal(goal,Number(data.goal));
-    // assert.equal(date,Number(data.startTime));
-    // assert.equal(150900,Number(data.pricePerToken));
     assert.equal(true,data.isLive);
+    assert.equal(true,data.isInitialized);
   });
 
  it("transfer tokens to staking", async () => {
-    const transferAmount = new anchor.BN((100_000_000 * 10 ** metadata.decimals).toString())
+    const transferAmount = new anchor.BN((1000_000_000 * 10 ** metadata.decimals).toString())
     const from_ata =  payer_ata;
 
     const reciever_ata = anchor.utils.token.associatedAddress({
@@ -200,9 +194,6 @@ it("stake",async()=>{
        });
 
 
-  
-
-
        const staking_ata = anchor.utils.token.associatedAddress({
          mint: mint,
          owner: stakingPda,
@@ -231,7 +222,7 @@ it("stake",async()=>{
 
 it("unstake_and_claim_rewards",async()=>{
 
-  // try{
+  try{
   const context1 = {
     signer:account1,
     staking:stakingPda,
@@ -292,12 +283,12 @@ it("unstake_and_claim_rewards",async()=>{
 
 
         //    assert.equal(Number(afterBalance.value.amount),Number(beforeBalance.value.amount)+stakingAmount.toNumber()+reward);
-      // }catch(e) {
-      // if (e instanceof anchor.AnchorError){
-      //       assert(e.message.includes("NoRewards"))
-      //     }else{
-      //       assert(false);
-      //     }
-      // }
+      }catch(e) {
+      if (e instanceof anchor.AnchorError){
+            assert(e.message.includes("NoRewards"))
+          }else{
+            assert(false);
+          }
+      }
 })
 })
