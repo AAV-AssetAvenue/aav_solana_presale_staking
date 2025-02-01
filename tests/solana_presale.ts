@@ -4,7 +4,7 @@ import { SolanaPresale } from "../target/types/solana_presale";
 import { assert } from "chai";
 import { BN } from "bn.js";
 import { SolanaSpl } from "../target/types/solana_spl";
-import { createAssociatedTokenAccount } from "@solana/spl-token";
+// import { createAccount, createAssociatedTokenAccount, createMint, getAccount, getAssociatedTokenAddress, mintTo,transfer } from "@solana/spl-token";
 
 const sleep = (s: number) => new Promise(resolve => setTimeout(resolve, s*1000));
 async function confirmTransaction(tx:string) {
@@ -50,7 +50,7 @@ describe("solana presale testcases", () => {
     name: "lamport Token",
     symbol: "LMT",
     uri: "https://pump.mypinata.cloud/ipfs/QmeSzchzEPqCU1jwTnsipwcBAeH7S4bmVvFGfF65iA1BY1?img-width=128&img-dpr=2&img-onerror=redirect",
-    decimals: 6,
+    decimals: 5,
   };
   const MINT_SEED = "token-mint";
   const DATA_SEED = "my_data";
@@ -71,10 +71,8 @@ describe("solana presale testcases", () => {
   );
   const account1 = program.provider.publicKey
   const account2 = anchor.web3.Keypair.generate()
-  const account2Investment= new BN(2*1e9)
+  const account2Investment= new BN(0.5e9)
   const date = Math.floor(new Date().getTime()/1000)
-  const endDate = date +  7 // 7 seconds
-  const goal = 3*1e9
 
   const [presalePda] = anchor.web3.PublicKey.findProgramAddressSync(
     [Buffer.from(PRESALE_SEED)],
@@ -88,7 +86,7 @@ describe("solana presale testcases", () => {
   });
  
   before(async()=>{
-    await airdropSol(account2.publicKey, 3*1e9); // 3 SOL
+    await airdropSol(account2.publicKey, 10*1e9); // 3 SOL
   })
 it("init token",async()=>{
   const context = {
@@ -121,10 +119,8 @@ it("init token",async()=>{
 
     // Add your test here.
     await program.methods.initializer(
-      new BN(goal), // goal
       new BN(date), // startTime
-      new BN(endDate), // endTime
-      new BN(150900) // pricePerToken
+      new BN(368664) // pricePerToken
     )        
     .accounts(startPresaleContext)
     .rpc();
@@ -132,11 +128,10 @@ it("init token",async()=>{
 
 
     const data = await program.account.presaleInfo.fetch(presalePda)
-    assert.equal(endDate,Number(data.endTime));
-    assert.equal(goal,Number(data.goal));
     assert.equal(date,Number(data.startTime));
-    assert.equal(150900,Number(data.pricePerToken));
+    assert.equal(368664,Number(data.pricePerTokenInSol));
     assert.equal(true,data.isLive);
+    assert.equal(true,data.isInitialized);
   });
 
   it("mint token",async()=>{
@@ -172,7 +167,7 @@ it("init token",async()=>{
   })
 
   it("transfer tokens to presale", async () => {
-    const transferAmount = 10
+    const transferAmount = 2357
     const from_ata =  payer_ata;
 
     const reciever_ata = anchor.utils.token.associatedAddress({
@@ -238,13 +233,13 @@ it("init token",async()=>{
     const data = await program.account.investmentData.fetch(dataPda)
     const balance = (await program.provider.connection.getTokenAccountBalance(reciever_ata))
     assert.equal(Number(balance.value.amount),Number(data.numberOfTokens))
-    assert.equal(Number(account2Investment),Number(data.amount))
+    assert.equal(Number(account2Investment),Number(data.solInvestmentAmount))
   })
  
 
 
 
-  it("fail withdraw sol",async()=>{
+  it("fail: withdraw sol",async()=>{
     try{
    
     const startPresaleContext = {
@@ -268,6 +263,7 @@ it("init token",async()=>{
 }
   })
 
+
   it("withdraw sol",async()=>{
    
     const startPresaleContext = {
@@ -283,11 +279,11 @@ it("init token",async()=>{
     .rpc();
     const afterBalance = await getSolBalance(program,account1)
     const rentExemption = await program.provider.connection.getMinimumBalanceForRentExemption(program.account.presaleInfo.size)
-    assert.isTrue(afterBalance > beforeBalance+Number(2*1e9) - rentExemption);
+    assert.isTrue(afterBalance > beforeBalance+Number(account2Investment) - rentExemption);
   })
 
   it("withdraw tokens",async()=>{
-    // await sleep(7)
+    
 
     const reciever_ata = anchor.utils.token.associatedAddress({
       mint: mint,
@@ -320,4 +316,6 @@ it("init token",async()=>{
     // assert.equal(Number(account2Investment),Number(data.amount))
   })
 
+
+ 
 });

@@ -10,19 +10,17 @@ pub mod solana_presale {
 
     pub fn initializer(
         ctx: Context<StartPresale>,
-        goal: u64,
         start_time: u64,
-        end_time: u64,
         price_per_token: u64,
     ) -> Result<()> {
         let presale = &mut ctx.accounts.presale;
+        require!(!presale.is_initialized, CustomError::AlreadyInitialized);
 
-        presale.goal = goal;
         presale.start_time = start_time;
-        presale.end_time = end_time;
-        presale.price_per_token = price_per_token;
+        presale.price_per_token_in_sol = price_per_token; // 0.000368664 sol  = 368664
         presale.is_live = true;
-        presale.amount_raised = 0;
+        presale.is_initialized = true;
+        presale.sol_amount_raised = 0;
         presale.token_mint =  ctx.accounts.token_mint.key();
         presale.authority = ctx.accounts.signer.key();
         Ok(())
@@ -30,26 +28,31 @@ pub mod solana_presale {
   
  
     // function for users to invest in presale using sol and get tokens in return.
+    // there is no vesting
+    // min investment is 0.5 sol and max investment is 200 sol
     pub fn invest_sol(ctx: Context<Invest>, value: u64) -> Result<()> {
+        require!(value >= 500000000 && value <= 200000000000, CustomError::WrongAmount);
+
         let presale_data = &mut ctx.accounts.presale;
+        let user_data = &mut ctx.accounts.data;
         
         require!(presale_data.is_live, CustomError::PresaleNotLive);
-        require!(presale_data.amount_raised+value <= presale_data.goal , CustomError::CanNotIvestMoreOrGoalReached);
 
 
         let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
 
         
-        require!(cur_timestamp > presale_data.start_time, CustomError::PresaleNotStarted);
-        require!(cur_timestamp < presale_data.end_time, CustomError::PresaleHasEnd);
+        require!(cur_timestamp >= presale_data.start_time, CustomError::PresaleNotStarted);
 
         
-        ctx.accounts.data.amount += value;
+        user_data.sol_investment_amount += value;
+       
+       //token has 5 decimals
+        let number_of_tokens = value * 100000 / presale_data.price_per_token_in_sol;
         
-        let number_of_tokens = value/presale_data.price_per_token;
-        ctx.accounts.data.number_of_tokens += number_of_tokens;
+        user_data.number_of_tokens += number_of_tokens;
         
-        presale_data.amount_raised += value;
+        presale_data.sol_amount_raised += value;
         presale_data.total_tokens_sold += number_of_tokens;
 
         let from_account = &ctx.accounts.from;
@@ -60,7 +63,7 @@ pub mod solana_presale {
         let transfer_instruction =
         solana_program::system_instruction::transfer(from_account.key, presale.key, value);
 
-        // Invoke the transfer instruction
+        // Invoke the transfer instruction for sol
         anchor_lang::solana_program::program::invoke(
             &transfer_instruction,
             &[
@@ -69,7 +72,7 @@ pub mod solana_presale {
                 ctx.accounts.system_program.to_account_info(),
             ],
         )?;
-
+        // Invoke the transfer instruction for token
         transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -98,7 +101,7 @@ pub mod solana_presale {
         presale.is_live = false;
         Ok(())
     }
-
+    // update presale token mint address 
     pub fn update_token_address(ctx: Context<UpdateTokenAddress>) -> Result<()>{
         let presale = &mut ctx.accounts.presale;
         presale.token_mint =  ctx.accounts.token_mint.key();
@@ -155,21 +158,21 @@ pub mod solana_presale {
 }
 
 
-
+// Constants
 pub const PRESALE_SEED:&[u8] = "solana_presale".as_bytes();
 pub const DATA_SEED:&[u8] = "my_data".as_bytes();
 
+// Account States
 #[account]
 #[derive(Default)]
 pub struct PresaleInfo {
-    pub goal: u64,
     pub token_mint: Pubkey,
-    pub amount_raised: u64, // total sol raised
+    pub sol_amount_raised: u64, // total sol raised
     pub total_tokens_sold: u64, // total token sold
     pub start_time: u64,
-    pub end_time: u64,
-    pub price_per_token: u64, // price per token in sol
-    pub is_live:bool,
+    pub price_per_token_in_sol: u64, // price per token in sol
+    pub is_live:bool, // is presale is live
+    pub is_initialized:bool, // is presale is initialized
     pub authority:Pubkey
 }
 
@@ -177,10 +180,11 @@ pub struct PresaleInfo {
 #[account]
 #[derive(Default)]
 pub struct InvestmentData {
-    pub amount: u64,
+    pub sol_investment_amount: u64,
     pub number_of_tokens: u64,
 }
 
+// Contexts
 #[derive(Accounts)]
 pub struct StartPresale<'info> {
     #[account(
@@ -373,7 +377,7 @@ pub struct StopPresale<'info> {
     
 }
 
-
+// Custom Errors
 #[error_code]
 pub enum CustomError {
     #[msg("Insufficient funds")]
@@ -395,6 +399,12 @@ pub enum CustomError {
     #[msg("Already claimed")]
     AlreadyClaimed,
     #[msg("Can not Ivest More Or Goal Reached")]
-    CanNotIvestMoreOrGoalReached
+    CanNotIvestMoreOrGoalReached,
+    #[msg("AlreadyInitialized")]
+    AlreadyInitialized,
+    #[msg("WrongTime")]
+    WrongTime,
+    #[msg("WrongAmount")]
+    WrongAmount,
 }
 
