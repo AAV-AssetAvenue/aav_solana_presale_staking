@@ -215,7 +215,6 @@ pub struct StartPresale<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
     
-    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 
 }
@@ -297,7 +296,6 @@ pub struct WithdrawSol<'info> {
         bump
     )]
     pub presale: Box<Account<'info,PresaleInfo>>,
-    pub system_program: Program<'info, System>,
 }
 
 
@@ -340,7 +338,6 @@ pub struct WithdrawTokens<'info> {
    
 
     pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
 

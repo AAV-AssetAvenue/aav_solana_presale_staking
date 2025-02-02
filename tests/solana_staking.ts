@@ -225,7 +225,7 @@ it("stake",async()=>{
 
 it("unstake_and_claim_rewards",async()=>{
 
-  try{
+  // try{
   const context1 = {
     signer:account1,
     staking:stakingPda,
@@ -286,12 +286,12 @@ it("unstake_and_claim_rewards",async()=>{
 
 
         //    assert.equal(Number(afterBalance.value.amount),Number(beforeBalance.value.amount)+stakingAmount.toNumber()+reward);
-      }catch(e) {
-      if (e instanceof anchor.AnchorError){
-            assert(e.message.includes("NoRewards"))
-          }else{
-            assert(false);
-          }
-      }
+      // }catch(e) {
+      // if (e instanceof anchor.AnchorError){
+      //       assert(e.message.includes("NoRewards"))
+      //     }else{
+      //       assert(false);
+      //     }
+      // }
 })
 })

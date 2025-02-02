@@ -88,7 +88,7 @@ pub mod solana_staking {
         let mut remaining_days = stake_duration_days;
         
         let mut current_month = (((user_start_date - staking.staking_start_date) * PRECISION + (MONTH_DURATION / 2)) / MONTH_DURATION) as usize;
-
+       
         while remaining_days > 0 && current_month < DAILY_REWARDS_LEN {
             let daily_reward = DAILY_REWARDS[current_month];
             let days_in_month = std::cmp::min(remaining_days, 30);
@@ -179,8 +179,10 @@ pub mod solana_staking {
 // Constants
 pub const STAKING_SEED:&[u8] = "solana_staking".as_bytes();
 pub const STAKING_DATA_SEED:&[u8] = "staking_user_data".as_bytes();
-pub const DAILY_REWARDS:[u64; 12] = [
-    1267100000, 1301400000, 1335600000, 1369900000, 1404100000, 1438400000, 1472600000, 1506800000, 1541100000, 1575300000, 1609600000, 1643800000
+pub const DAILY_REWARDS: [u64; 12] = [
+    1205350000, 1237979000, 1270512000, 1303141000, 
+    1335674000, 1368302000, 1400836000, 1433369000, 
+    1465998000, 1498531000, 1531159000, 1563693000
 ];
 pub const DAILY_REWARDS_LEN:usize = DAILY_REWARDS.len();
 pub const PRECISION:u64 = 100000; // Match token decimals = 5
