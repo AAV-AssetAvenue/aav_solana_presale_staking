@@ -539,6 +539,7 @@ pub struct Initializer<'info> {
         bump
     )]
     pub presale: Box<Account<'info, PresaleInfo>>,
+    
     #[account(
         init_if_needed,
         payer = signer,
@@ -551,9 +552,8 @@ pub struct Initializer<'info> {
         bump
     )]
     pub staking: Box<Account<'info, StakingInfo>>,
-    #[account(
-        constraint = token_mint.is_initialized == true,
-    )]
+
+   
     #[account(
         init_if_needed,
         payer = signer,
@@ -568,9 +568,22 @@ pub struct Initializer<'info> {
         associated_token::authority = staking
     )]
     pub staking_token_account: Box<Account<'info, TokenAccount>>,
-
+    #[account(
+        constraint = token_mint.is_initialized == true,
+    )]
     pub token_mint: Box<Account<'info, Mint>>, // Token mint account
-
+    // Presale's USDC Token Account
+    #[account(
+        init_if_needed,
+        payer = signer,
+        associated_token::mint = usdc_mint,
+        associated_token::authority = presale
+    )]
+    pub presale_usdc_account: Box<Account<'info, TokenAccount>>,
+    #[account(
+        constraint = usdc_mint.key() == Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").map_err(|_| CustomError::InvalidToken)? @ CustomError::InvalidToken
+    )]
+    pub usdc_mint: Box<Account<'info, Mint>>,
     #[account(mut)]
     pub signer: Signer<'info>,
     pub token_program: Program<'info, Token>,
@@ -596,6 +609,7 @@ pub struct Invest<'info> {
 
     #[account(mut)]
     pub from: Signer<'info>,
+
     #[account(
         mut,
         seeds = [PRESALE_SEED],
@@ -605,28 +619,28 @@ pub struct Invest<'info> {
 
     // Presale's USDC Token Account
     #[account(
-    mut,
-    associated_token::mint = usdc_mint,
-    associated_token::authority = presale
-)]
+        mut,
+        associated_token::mint = usdc_mint,
+        associated_token::authority = presale
+    )]
     pub presale_usdc_account: Box<Account<'info, TokenAccount>>,
 
     // Investor's USDC Token Account
     #[account(
-    mut,
-    associated_token::mint = usdc_mint,
-    associated_token::authority = signer
-)]
+        init_if_needed,
+        payer = signer,
+        associated_token::mint = usdc_mint,
+        associated_token::authority = signer
+    )]
     pub investor_usdc_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
-    constraint = usdc_mint.key() == Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").map_err(|_| CustomError::InvalidToken)? @ CustomError::InvalidToken
-)]
+        constraint = usdc_mint.key() == Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").map_err(|_| CustomError::InvalidToken)? @ CustomError::InvalidToken
+    )]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
     #[account(
-        init_if_needed, 
-        payer = signer, 
+        mut,
         associated_token::mint = token_mint,
         associated_token::authority = presale
     )]
@@ -709,7 +723,8 @@ pub struct BuyAndStake<'info> {
     pub presale_usdc_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
-        mut,
+        init_if_needed,
+        payer = investor,
         associated_token::mint = usdc_mint,
         associated_token::authority = investor
     )]
@@ -746,8 +761,7 @@ pub struct Stake<'info> {
     pub staking: Box<Account<'info, StakingInfo>>,
 
     #[account(
-        init_if_needed,
-        payer = signer,
+        mut,
         associated_token::mint = token_mint,
         associated_token::authority = staking
     )]
@@ -800,8 +814,7 @@ pub struct Unstake<'info> {
     pub staking_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
-        init_if_needed,
-        payer = signer,
+        mut,
         associated_token::mint = token_mint,
         associated_token::authority = signer,
     )]
@@ -843,7 +856,8 @@ pub struct WithdrawUsdc<'info> {
 
     // Admin's USDC Token Account (where USDC is sent)
     #[account(
-        mut,
+        init_if_needed,
+        payer = signer,
         associated_token::mint = usdc_mint,
         associated_token::authority = signer
     )]
@@ -851,8 +865,10 @@ pub struct WithdrawUsdc<'info> {
 
     #[account(mut)]
     pub usdc_mint: Box<Account<'info, Mint>>,
-
+    pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+
 }
 
 #[derive(Accounts)]
@@ -880,7 +896,8 @@ pub struct WithdrawTokens<'info> {
     pub presale_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
-        mut,
+        init_if_needed,
+        payer = signer,
         associated_token::mint = token_mint,
         associated_token::authority = signer,
     )]
@@ -902,6 +919,7 @@ pub struct WithdrawTokens<'info> {
     #[account(mut)]
     pub token_mint: Box<Account<'info, Mint>>,
 
+    pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
@@ -916,7 +934,8 @@ pub struct StakingWithdrawTokens<'info> {
     pub staking_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
-        mut,
+        init_if_needed,
+        payer = signer,
         associated_token::mint = token_mint,
         associated_token::authority = signer,
     )]
