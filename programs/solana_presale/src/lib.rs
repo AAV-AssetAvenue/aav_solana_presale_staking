@@ -1,5 +1,8 @@
 use anchor_lang::{prelude::*, solana_program};
-use anchor_spl::{associated_token::AssociatedToken, token::{transfer, Mint, Token, TokenAccount, Transfer}};
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token::{transfer, Mint, Token, TokenAccount, Transfer},
+};
 use std::str::FromStr;
 
 declare_id!("G7n94bhEkqKwBkgqVALJ2AzPrugaca5XH2pWw3xy88xB");
@@ -7,11 +10,12 @@ declare_id!("G7n94bhEkqKwBkgqVALJ2AzPrugaca5XH2pWw3xy88xB");
 #[program]
 pub mod solana_presale {
 
-
     use super::*;
-
+    ////////////////////////////////////////////////////////////
+    //                        Initializer
+    ////////////////////////////////////////////////////////////
     pub fn initializer(
-        ctx: Context<StartPresale>,
+        ctx: Context<Initializer>,
         start_time: u64,
         price_per_token_in_sol: u64,
         price_per_token_in_usdc: u64,
@@ -25,11 +29,9 @@ pub mod solana_presale {
         presale.is_live = true;
         presale.is_initialized = true;
         presale.sol_amount_raised = 0;
-        presale.token_mint =  ctx.accounts.token_mint.key();
+        presale.token_mint = ctx.accounts.token_mint.key();
         presale.authority = ctx.accounts.signer.key();
 
-
-   
         let staking = &mut ctx.accounts.staking;
 
         let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
@@ -41,59 +43,89 @@ pub mod solana_presale {
         staking.allow_claiming = false;
         staking.authority = ctx.accounts.signer.key();
 
-
-
         Ok(())
     }
-  
- 
+
+    ////////////////////////////////////////////////////////////
+    //                        User functions
+    ////////////////////////////////////////////////////////////
+
     // function for users to invest in presale using sol and get tokens in return.
     // there is no vesting
     // min investment is 0.5 sol and max investment is 200 sol
-    pub fn invest_sol(ctx: Context<Invest>, value: u64) -> Result<()> {
-        require!(value >= 500000000 && value <= 200000000000, CustomError::WrongAmount);
-
+    pub fn invest(ctx: Context<Invest>, value: u64, payment_token: u8) -> Result<()> {
         let presale_data = &mut ctx.accounts.presale;
         let user_data = &mut ctx.accounts.data;
-        
-        require!(presale_data.is_live, CustomError::PresaleNotLive);
 
+        require!(presale_data.is_live, CustomError::PresaleNotLive);
 
         let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
 
-        
-        require!(cur_timestamp >= presale_data.start_time, CustomError::PresaleNotStarted);
+        require!(
+            cur_timestamp >= presale_data.start_time,
+            CustomError::PresaleNotStarted
+        );
 
-        
-        user_data.sol_investment_amount += value;
-       
-       //token has 5 decimals
-        let number_of_tokens = value * 100000 / presale_data.price_per_token_in_sol;
-        
+        let number_of_tokens = if payment_token == 0 {
+            // SOL Payment
+            require!(
+                value >= 500000000 && value <= 200000000000,
+                CustomError::WrongAmount
+            );
+            value * 100000 / presale_data.price_per_token_in_sol
+        } else {
+            // USDC Payment
+            require!(
+                value >= 100_000000 && value <= 40_000_000000,
+                CustomError::WrongAmount
+            );
+            value * 100000 / presale_data.price_per_token_in_usdc
+        };
+
+        if payment_token == 0 {
+            user_data.sol_investment_amount += value;
+            presale_data.sol_amount_raised += value;
+        } else {
+            user_data.usdc_investment_amount += value;
+            presale_data.usdc_amount_raised += value;
+        }
         user_data.number_of_tokens += number_of_tokens;
-        
-        presale_data.sol_amount_raised += value;
         presale_data.total_tokens_sold += number_of_tokens;
 
         let from_account = &ctx.accounts.from;
         let presale = presale_data.to_account_info();
 
+        if payment_token == 0 {
+            // Transfer Sol from investor to presale account
+            let transfer_instruction =
+                solana_program::system_instruction::transfer(from_account.key, presale.key, value);
 
-        // Create the transfer instruction
-        let transfer_instruction =
-        solana_program::system_instruction::transfer(from_account.key, presale.key, value);
-
-        // Invoke the transfer instruction for sol
-        anchor_lang::solana_program::program::invoke(
-            &transfer_instruction,
-            &[
-                from_account.to_account_info(),
-                presale.to_account_info(),
-                ctx.accounts.system_program.to_account_info(),
-            ],
-        )?;
-        // Invoke the transfer instruction for token
-        transfer(
+            // Invoke the transfer instruction for sol
+            anchor_lang::solana_program::program::invoke(
+                &transfer_instruction,
+                &[
+                    from_account.to_account_info(),
+                    presale.to_account_info(),
+                    ctx.accounts.system_program.to_account_info(),
+                ],
+            )?;
+         
+        } else {
+            // Transfer USDC from investor to presale account
+            transfer(
+                CpiContext::new(
+                    ctx.accounts.token_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.investor_usdc_account.to_account_info(),
+                        to: ctx.accounts.presale_usdc_account.to_account_info(),
+                        authority: ctx.accounts.signer.to_account_info(),
+                    },
+                ),
+                value,
+            )?;
+        }
+         // Transfer Presale Tokens to Investor
+         transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
                 Transfer {
@@ -105,57 +137,6 @@ pub mod solana_presale {
             ),
             number_of_tokens,
         )?;
-
-        Ok(())
-    }
-
-    pub fn invest_usdc(ctx: Context<InvestUsdc>, value: u64) -> Result<()> {
-        require!(value >= 100_000000 && value <= 40_000_000000, CustomError::WrongAmount); // Min: 100 USDC, Max: 40,000 USDC (USDC has 6 decimals)
-    
-        let presale_data = &mut ctx.accounts.presale;
-        let user_data = &mut ctx.accounts.data;
-        
-        require!(presale_data.is_live, CustomError::PresaleNotLive);
-    
-        let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
-        require!(cur_timestamp >= presale_data.start_time, CustomError::PresaleNotStarted);
-    
-        // Calculate number of presale tokens based on USDC price
-        let number_of_tokens = value * 100000 / presale_data.price_per_token_in_usdc;
-        
-        user_data.usdc_investment_amount += value;
-        user_data.number_of_tokens += number_of_tokens;
-        
-        presale_data.usdc_amount_raised += value;
-        presale_data.total_tokens_sold += number_of_tokens;
-    
-        // Transfer USDC from investor to presale account
-        transfer(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.investor_usdc_account.to_account_info(),
-                    to: ctx.accounts.presale_usdc_account.to_account_info(),
-                    authority: ctx.accounts.investor.to_account_info(),
-                },
-            ),
-            value,
-        )?;
-    
-        // Transfer Presale Tokens to Investor
-        transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.presale_token_account.to_account_info(),
-                    to: ctx.accounts.investor_token_account.to_account_info(),
-                    authority: ctx.accounts.presale.to_account_info(),
-                },
-                &[&[PRESALE_SEED, &[ctx.bumps.presale]][..]],
-            ),
-            number_of_tokens,
-        )?;
-    
         Ok(())
     }
 
@@ -163,34 +144,45 @@ pub mod solana_presale {
         let presale_data = &mut ctx.accounts.presale;
         let staking_data = &mut ctx.accounts.staking;
         let user_staking_data = &mut ctx.accounts.staking_data;
-    
+
         require!(presale_data.is_live, CustomError::PresaleNotLive);
-    
+
         let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
-        require!(cur_timestamp >= presale_data.start_time, CustomError::PresaleNotStarted);
-    
+        require!(
+            cur_timestamp >= presale_data.start_time,
+            CustomError::PresaleNotStarted
+        );
+
         let number_of_tokens = if payment_token == 0 {
             // SOL Payment
-            require!(value >= 500000000 && value <= 200000000000, CustomError::WrongAmount);
+            require!(
+                value >= 500000000 && value <= 200000000000,
+                CustomError::WrongAmount
+            );
             value * 100000 / presale_data.price_per_token_in_sol
         } else {
             // USDC Payment
-            require!(value >= 100_000000 && value <= 40_000_000000, CustomError::WrongAmount);
+            require!(
+                value >= 100_000000 && value <= 40_000_000000,
+                CustomError::WrongAmount
+            );
             value * 100000 / presale_data.price_per_token_in_usdc
         };
-    
+
         presale_data.total_tokens_sold += number_of_tokens;
         staking_data.total_tokens_staked += number_of_tokens;
-    
+
         // Update user staking balance
         user_staking_data.total_staking_balance += number_of_tokens;
-   
-    
+
         if payment_token == 0 {
             // Handle SOL Transfer
-            let transfer_instruction =
-                solana_program::system_instruction::transfer(ctx.accounts.investor.key, presale_data.to_account_info().key, value);
-    
+            let transfer_instruction = solana_program::system_instruction::transfer(
+                ctx.accounts.investor.key,
+                presale_data.to_account_info().key,
+                value,
+            );
+
             anchor_lang::solana_program::program::invoke(
                 &transfer_instruction,
                 &[
@@ -213,7 +205,7 @@ pub mod solana_presale {
                 value,
             )?;
         }
-    
+
         // Transfer tokens to Staking Contract
         transfer(
             CpiContext::new_with_signer(
@@ -227,7 +219,7 @@ pub mod solana_presale {
             ),
             number_of_tokens,
         )?;
-    
+
         Ok(())
     }
 
@@ -235,19 +227,23 @@ pub mod solana_presale {
         require!(amount > 0, CustomError::ZeroAmount);
 
         let staking = &mut ctx.accounts.staking;
-        
+
         let user_info = &mut ctx.accounts.staking_data;
-        
-   
+
         if !user_info.is_first_time {
             let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
             user_info.stake_date = cur_timestamp;
             user_info.is_first_time = true;
         }
 
-        user_info.total_staking_balance = user_info.total_staking_balance.checked_add(amount).ok_or(CustomError::Overflow)?;
-        staking.total_tokens_staked = staking.total_tokens_staked.checked_add(amount).ok_or(CustomError::Overflow)?;
-        
+        user_info.total_staking_balance = user_info
+            .total_staking_balance
+            .checked_add(amount)
+            .ok_or(CustomError::Overflow)?;
+        staking.total_tokens_staked = staking
+            .total_tokens_staked
+            .checked_add(amount)
+            .ok_or(CustomError::Overflow)?;
 
         transfer(
             CpiContext::new_with_signer(
@@ -255,9 +251,9 @@ pub mod solana_presale {
                 Transfer {
                     from: ctx.accounts.signer_token_account.to_account_info(),
                     to: ctx.accounts.staking_token_account.to_account_info(),
-                    authority: ctx.accounts.signer.to_account_info(),  
+                    authority: ctx.accounts.signer.to_account_info(),
                 },
-                &[], 
+                &[],
             ),
             amount,
         )?;
@@ -267,41 +263,44 @@ pub mod solana_presale {
 
     // if allow_claiming is true, then this function will be callable
     pub fn unstake_and_claim_rewards(ctx: Context<Unstake>) -> Result<()> {
-        
         let staking = &mut ctx.accounts.staking;
         require!(staking.allow_claiming, CustomError::ClaimLocked);
-        
+
         let user_info = &mut ctx.accounts.staking_data;
         require!(user_info.total_staking_balance > 0, CustomError::ZeroAmount);
 
-        let user_start_date =   user_info.stake_date;
-        
+        let user_start_date = user_info.stake_date;
+
         let staked_amount = user_info.total_staking_balance;
         let total_tokens_staked = staking.total_tokens_staked;
-        
+
         let user_share = (staked_amount * PRECISION) / total_tokens_staked;
-        
+
         let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
         let time_diff = (cur_timestamp - user_start_date) * PRECISION;
-                
+
         let stake_duration_days = ((time_diff + (DAY_DURATION / 2)) / DAY_DURATION) as u64;
-        
+
         let mut reward_accumulated: u64 = 0;
         let mut remaining_days = stake_duration_days;
-        
-        let mut current_month = (((user_start_date - staking.staking_start_date) * PRECISION + (MONTH_DURATION / 2)) / MONTH_DURATION) as usize;
-       
+
+        let mut current_month = (((user_start_date - staking.staking_start_date) * PRECISION
+            + (MONTH_DURATION / 2))
+            / MONTH_DURATION) as usize;
+
         while remaining_days > 0 && current_month < DAILY_REWARDS_LEN {
             let daily_reward = DAILY_REWARDS[current_month];
             let days_in_month = std::cmp::min(remaining_days, 30);
-        
+
             let scaled_reward = (user_share * daily_reward * days_in_month) / PRECISION;
-        
+
             reward_accumulated = reward_accumulated
                 .checked_add(scaled_reward)
                 .ok_or(CustomError::Overflow)?;
-        
-            remaining_days = remaining_days.checked_sub(days_in_month).ok_or(CustomError::Overflow)?;
+
+            remaining_days = remaining_days
+                .checked_sub(days_in_month)
+                .ok_or(CustomError::Overflow)?;
             current_month = current_month.checked_add(1).ok_or(CustomError::Overflow)?;
         }
 
@@ -314,13 +313,19 @@ pub mod solana_presale {
 
         require!(reward_accumulated > 0, CustomError::NoRewards);
         msg!("Reward accumulated: {}", reward_accumulated);
-        
+
         let total_payable = staked_amount
             .checked_add(reward_accumulated)
             .ok_or(CustomError::Overflow)?;
 
-        staking.total_tokens_staked = staking.total_tokens_staked.checked_sub(staked_amount).ok_or(CustomError::Overflow)?;
-        staking.total_tokens_rewarded = staking.total_tokens_rewarded.checked_add(reward_accumulated).ok_or(CustomError::Overflow)?;
+        staking.total_tokens_staked = staking
+            .total_tokens_staked
+            .checked_sub(staked_amount)
+            .ok_or(CustomError::Overflow)?;
+        staking.total_tokens_rewarded = staking
+            .total_tokens_rewarded
+            .checked_add(reward_accumulated)
+            .ok_or(CustomError::Overflow)?;
         user_info.total_staking_balance = 0;
         user_info.is_first_time = false;
 
@@ -334,49 +339,44 @@ pub mod solana_presale {
                 },
                 &[&[STAKING_SEED, &[ctx.bumps.staking]]],
             ),
-            total_payable
+            total_payable,
         )?;
-    
+
         Ok(())
     }
- 
-    
+
     ////////////////////////////////////////////////////////////
     //                        Admin functions
     ////////////////////////////////////////////////////////////
-    pub fn allow_claiming(ctx: Context<UnlockStaking>,toggle:bool) -> Result<()> {
+    pub fn allow_claiming(ctx: Context<UnlockStaking>, toggle: bool) -> Result<()> {
         let staking = &mut ctx.accounts.staking;
-        staking.allow_claiming = toggle;    
+        staking.allow_claiming = toggle;
         Ok(())
     }
 
-
-    pub fn change_price(ctx: Context<StopPresale>,sol_price:u64,usdc_price:u64) -> Result<()> {
-        
+    pub fn change_price(ctx: Context<StopPresale>, sol_price: u64, usdc_price: u64) -> Result<()> {
         let presale = &mut ctx.accounts.presale;
 
         presale.price_per_token_in_sol = sol_price;
         presale.price_per_token_in_usdc = usdc_price;
         Ok(())
-    } 
+    }
 
-    pub fn toggle_presale(ctx: Context<StopPresale>,toggle:bool) -> Result<()> {
-        
+    pub fn toggle_presale(ctx: Context<StopPresale>, toggle: bool) -> Result<()> {
         let presale = &mut ctx.accounts.presale;
 
         presale.is_live = toggle;
         Ok(())
     }
-    // update presale token mint address 
-    pub fn update_token_address(ctx: Context<UpdateTokenAddress>) -> Result<()>{
+    // update presale token mint address
+    pub fn update_token_address(ctx: Context<UpdateTokenAddress>) -> Result<()> {
         let presale = &mut ctx.accounts.presale;
-        presale.token_mint =  ctx.accounts.token_mint.key();
+        presale.token_mint = ctx.accounts.token_mint.key();
 
         Ok(())
     }
     // emergency function for admin to withdraw tokens from presale. should be used in emergency scenario.
     pub fn presale_emergency_withdraw_tokens(ctx: Context<WithdrawTokens>) -> Result<()> {
-        
         transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -389,12 +389,11 @@ pub mod solana_presale {
             ),
             ctx.accounts.presale_token_account.amount, //  balance of the presale token account.
         )?;
-        
+
         Ok(())
     }
-     // emergency function for admin to withdraw tokens from staking. should be used in emergency scenario.
-     pub fn staking_emergency_withdraw_tokens(ctx: Context<StakingWithdrawTokens>) -> Result<()> {
-        
+    // emergency function for admin to withdraw tokens from staking. should be used in emergency scenario.
+    pub fn staking_emergency_withdraw_tokens(ctx: Context<StakingWithdrawTokens>) -> Result<()> {
         transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -407,21 +406,20 @@ pub mod solana_presale {
             ),
             ctx.accounts.staking_token_account.amount, //  balance of the staking token account.
         )?;
-        
+
         Ok(())
     }
     // function for admin to withdraw sol from contract.
     pub fn withdraw_sol(ctx: Context<WithdrawSol>) -> Result<()> {
-
         let presale = &mut ctx.accounts.presale.to_account_info();
         let recipient = &ctx.accounts.signer;
 
         // Get the minimum rent-exempt balance for the account
-        let rent_exemption = Rent::get()?.minimum_balance(presale.data_len());        
-        
+        let rent_exemption = Rent::get()?.minimum_balance(presale.data_len());
+
         let presale_balance = presale.lamports();
 
-        require!(presale_balance > 0 , CustomError::InsufficientFunds);
+        require!(presale_balance > 0, CustomError::InsufficientFunds);
 
         // Ensure there is enough balance to withdraw after leaving rent
         require!(
@@ -431,19 +429,17 @@ pub mod solana_presale {
 
         // Calculate the amount to withdraw, leaving the rent-exempt balance
         let amount_to_withdraw = presale_balance - rent_exemption;
-        
 
         **presale.to_account_info().try_borrow_mut_lamports()? -= amount_to_withdraw;
         **recipient.to_account_info().try_borrow_mut_lamports()? += amount_to_withdraw;
-    
+
         Ok(())
     }
 
     pub fn withdraw_usdc(ctx: Context<WithdrawUsdc>) -> Result<()> {
-    
         let usdc_balance = ctx.accounts.presale_usdc_account.amount;
         require!(usdc_balance > 0, CustomError::InsufficientFunds);
-    
+
         // Transfer USDC to the admin
         transfer(
             CpiContext::new_with_signer(
@@ -457,28 +453,30 @@ pub mod solana_presale {
             ),
             usdc_balance,
         )?;
-    
+
         Ok(())
     }
 }
 
-
-// Constants
-pub const PRESALE_SEED:&[u8] = "solana_presale".as_bytes();
-pub const DATA_SEED:&[u8] = "my_data".as_bytes();
-pub const STAKING_SEED:&[u8] = "solana_staking".as_bytes();
-pub const STAKING_DATA_SEED:&[u8] = "staking_user_data".as_bytes();
+////////////////////////////////////////////////////////////
+//                        Constants
+////////////////////////////////////////////////////////////
+pub const PRESALE_SEED: &[u8] = "solana_presale".as_bytes();
+pub const DATA_SEED: &[u8] = "my_data".as_bytes();
+pub const STAKING_SEED: &[u8] = "solana_staking".as_bytes();
+pub const STAKING_DATA_SEED: &[u8] = "staking_user_data".as_bytes();
 pub const DAILY_REWARDS: [u64; 12] = [
-    1205350000, 1237979000, 1270512000, 1303141000, 
-    1335674000, 1368302000, 1400836000, 1433369000, 
-    1465998000, 1498531000, 1531159000, 1563693000
+    1205350000, 1237979000, 1270512000, 1303141000, 1335674000, 1368302000, 1400836000, 1433369000,
+    1465998000, 1498531000, 1531159000, 1563693000,
 ];
-pub const DAILY_REWARDS_LEN:usize = DAILY_REWARDS.len();
-pub const PRECISION:u64 = 100000; // Match token decimals = 5
-pub const MONTH_DURATION:u64 = (30 * 24 * 60 * 60) * PRECISION;
-pub const DAY_DURATION:u64 = (24 * 60 * 60) * PRECISION;
+pub const DAILY_REWARDS_LEN: usize = DAILY_REWARDS.len();
+pub const PRECISION: u64 = 100000; // Match token decimals = 5
+pub const MONTH_DURATION: u64 = (30 * 24 * 60 * 60) * PRECISION;
+pub const DAY_DURATION: u64 = (24 * 60 * 60) * PRECISION;
 
-// Account States
+////////////////////////////////////////////////////////////
+//                        Account States
+////////////////////////////////////////////////////////////
 
 #[account]
 #[derive(Default)]
@@ -488,7 +486,7 @@ pub struct StakingInfo {
     pub total_tokens_staked: u64,
     pub total_tokens_rewarded: u64,
     pub staking_start_date: u64,
-    pub allow_claiming:bool,
+    pub allow_claiming: bool,
 }
 
 #[account]
@@ -504,15 +502,15 @@ pub struct StakingData {
 #[derive(Default)]
 pub struct PresaleInfo {
     pub token_mint: Pubkey,
-    pub sol_amount_raised: u64, // total sol raised
+    pub sol_amount_raised: u64,  // total sol raised
     pub usdc_amount_raised: u64, // total sol raised
-    pub total_tokens_sold: u64, // total token sold
+    pub total_tokens_sold: u64,  // total token sold
     pub start_time: u64,
-    pub price_per_token_in_sol: u64, // price per token in sol
+    pub price_per_token_in_sol: u64,  // price per token in sol
     pub price_per_token_in_usdc: u64, // price per token in sol
-    pub is_live:bool, // is presale is live
-    pub is_initialized:bool, // is presale is initialized
-    pub authority:Pubkey
+    pub is_live: bool,                // is presale is live
+    pub is_initialized: bool,         // is presale is initialized
+    pub authority: Pubkey,
 }
 
 #[account]
@@ -523,6 +521,135 @@ pub struct InvestmentData {
     pub number_of_tokens: u64,
 }
 
+////////////////////////////////////////////////////////////
+//                        Contexts
+////////////////////////////////////////////////////////////
+
+#[derive(Accounts)]
+pub struct Initializer<'info> {
+    #[account(
+        init_if_needed,
+        payer = signer,
+          /*
+        Discriminator: 8 bytes
+        PresaleInfo : size of PresaleInfo
+         */
+        space=8 + std::mem::size_of::<PresaleInfo>(),
+        seeds = [PRESALE_SEED],
+        bump
+    )]
+    pub presale: Box<Account<'info, PresaleInfo>>,
+    #[account(
+        init_if_needed,
+        payer = signer,
+          /*
+        Discriminator: 8 bytes
+        StakingInfo : size of StakingInfo
+         */
+        space=8 + std::mem::size_of::<StakingInfo>(),
+        seeds = [STAKING_SEED],
+        bump
+    )]
+    pub staking: Box<Account<'info, StakingInfo>>,
+    #[account(
+        constraint = token_mint.is_initialized == true,
+    )]
+    #[account(
+        init_if_needed,
+        payer = signer,
+        associated_token::mint = token_mint,
+        associated_token::authority = presale
+    )]
+    pub presale_token_account: Box<Account<'info, TokenAccount>>,
+    #[account(
+        init_if_needed,
+        payer = signer,
+        associated_token::mint = token_mint,
+        associated_token::authority = staking
+    )]
+    pub staking_token_account: Box<Account<'info, TokenAccount>>,
+
+    pub token_mint: Box<Account<'info, Mint>>, // Token mint account
+
+    #[account(mut)]
+    pub signer: Signer<'info>,
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+}
+
+#[derive(Accounts)]
+pub struct Invest<'info> {
+    #[account(
+        init_if_needed,
+        /*
+        Discriminator: 8 bytes
+        InvestmentData : size of InvestmentData
+         */
+        space=8 + std::mem::size_of::<InvestmentData>(),
+        payer=from,
+        seeds=[DATA_SEED,from.key().as_ref()],
+        bump
+
+    )]
+    pub data: Box<Account<'info, InvestmentData>>,
+
+    #[account(mut)]
+    pub from: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [PRESALE_SEED],
+        bump
+    )]
+    pub presale: Box<Account<'info, PresaleInfo>>,
+
+    // Presale's USDC Token Account
+    #[account(
+    mut,
+    associated_token::mint = usdc_mint,
+    associated_token::authority = presale
+)]
+    pub presale_usdc_account: Box<Account<'info, TokenAccount>>,
+
+    // Investor's USDC Token Account
+    #[account(
+    mut,
+    associated_token::mint = usdc_mint,
+    associated_token::authority = signer
+)]
+    pub investor_usdc_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+    constraint = usdc_mint.key() == Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").map_err(|_| CustomError::InvalidToken)? @ CustomError::InvalidToken
+)]
+    pub usdc_mint: Box<Account<'info, Mint>>,
+
+    #[account(
+        init_if_needed, 
+        payer = signer, 
+        associated_token::mint = token_mint,
+        associated_token::authority = presale
+    )]
+    pub presale_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        init_if_needed,
+        payer = signer,
+        associated_token::mint = token_mint,
+        associated_token::authority = signer,
+    )]
+    pub signer_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(mut)]
+    pub signer: Signer<'info>,
+
+    #[account(mut)]
+    pub token_mint: Box<Account<'info, Mint>>,
+
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+}
 
 #[derive(Accounts)]
 pub struct BuyAndStake<'info> {
@@ -567,8 +694,8 @@ pub struct BuyAndStake<'info> {
     pub staking_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(mut)]
-    pub token_mint: Box<Account<'info, Mint>>, 
-    
+    pub token_mint: Box<Account<'info, Mint>>,
+
     #[account(
         constraint = usdc_mint.key() == Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").map_err(|_| CustomError::InvalidToken)? @ CustomError::InvalidToken
     )]
@@ -594,127 +721,6 @@ pub struct BuyAndStake<'info> {
 }
 
 #[derive(Accounts)]
-pub struct StakingWithdrawTokens<'info> {
-
-
-    #[account(
-        mut,
-        associated_token::mint = token_mint,
-        associated_token::authority = staking.key()
-    )]
-    pub staking_token_account: Box<Account<'info, TokenAccount>>,
-    
-    #[account(
-        mut,
-        associated_token::mint = token_mint,
-        associated_token::authority = signer,
-    )]
-    pub signer_token_account: Box<Account<'info, TokenAccount>>,
-
-    #[account(
-        mut,
-        seeds = [STAKING_SEED],
-        bump
-    )]
-    pub staking: Box<Account<'info,StakingInfo>>,
-    
-
-
-    #[account(
-        mut,
-        constraint = signer.key() == staking.authority.key() @ CustomError::Unauthorized,
-    )]
-    pub signer: Signer<'info>,
-
-
-    #[account(mut)]
-    pub token_mint: Box<Account<'info, Mint>>, 
-   
-
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-}
-
-
-#[derive(Accounts)]
-pub struct UnlockStaking<'info> {
-    #[account(
-        mut,
-        seeds = [STAKING_SEED],
-        bump
-    )]
-    pub staking: Box<Account<'info, StakingInfo>>,
-
-    #[account(
-        mut,
-        constraint = signer.key() == staking.authority.key() @ CustomError::Unauthorized,
-    )]
-    pub signer: Signer<'info>,
-}
-
-// Contexts
-#[derive(Accounts)]
-pub struct StartPresale<'info> {
-    #[account(
-        init_if_needed,
-        payer = signer,
-          /*
-        Discriminator: 8 bytes
-        PresaleInfo : size of PresaleInfo
-         */
-        space=8 + std::mem::size_of::<PresaleInfo>(),
-        seeds = [PRESALE_SEED],
-        bump
-    )]
-    pub presale: Box<Account<'info, PresaleInfo>>,
-    #[account(
-        init_if_needed,
-        payer = signer,
-          /*
-        Discriminator: 8 bytes
-        StakingInfo : size of StakingInfo
-         */
-        space=8 + std::mem::size_of::<StakingInfo>(),
-        seeds = [STAKING_SEED],
-        bump
-    )]
-    pub staking: Box<Account<'info, StakingInfo>>,
-    #[account(
-        constraint = token_mint.is_initialized == true,
-    )]
-
-    #[account(
-        init_if_needed,
-        payer = signer,
-        associated_token::mint = token_mint,
-        associated_token::authority = presale
-    )]
-    pub presale_token_account: Box<Account<'info, TokenAccount>>,
-    #[account(
-        init_if_needed,
-        payer = signer,
-        associated_token::mint = token_mint,
-        associated_token::authority = staking
-    )]
-    pub staking_token_account: Box<Account<'info, TokenAccount>>,
-    
-  
-
-
-    pub token_mint: Box<Account<'info, Mint>>, // Token mint account
-
-
-    #[account(mut)]
-    pub signer: Signer<'info>,
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-
-}
-
-
-#[derive(Accounts)]
 pub struct Stake<'info> {
     #[account(
         init_if_needed,
@@ -737,10 +743,7 @@ pub struct Stake<'info> {
         seeds = [STAKING_SEED],
         bump
     )]
-    pub staking: Box<Account<'info,StakingInfo>>,
-    
-
-
+    pub staking: Box<Account<'info, StakingInfo>>,
 
     #[account(
         init_if_needed,
@@ -749,7 +752,7 @@ pub struct Stake<'info> {
         associated_token::authority = staking
     )]
     pub staking_token_account: Box<Account<'info, TokenAccount>>,
-    
+
     #[account(
         init_if_needed,
         payer = signer,
@@ -758,15 +761,11 @@ pub struct Stake<'info> {
     )]
     pub signer_token_account: Box<Account<'info, TokenAccount>>,
 
- 
-
     #[account(mut)]
     pub signer: Signer<'info>,
 
-
     #[account(mut)]
-    pub token_mint: Box<Account<'info, Mint>>, 
-   
+    pub token_mint: Box<Account<'info, Mint>>,
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
@@ -791,10 +790,7 @@ pub struct Unstake<'info> {
         seeds = [STAKING_SEED],
         bump
     )]
-    pub staking: Box<Account<'info,StakingInfo>>,
-    
-
-
+    pub staking: Box<Account<'info, StakingInfo>>,
 
     #[account(
         mut,
@@ -802,7 +798,7 @@ pub struct Unstake<'info> {
         associated_token::authority = staking.key()
     )]
     pub staking_token_account: Box<Account<'info, TokenAccount>>,
-    
+
     #[account(
         init_if_needed,
         payer = signer,
@@ -811,20 +807,16 @@ pub struct Unstake<'info> {
     )]
     pub signer_token_account: Box<Account<'info, TokenAccount>>,
 
- 
     #[account(mut)]
     pub signer: Signer<'info>,
 
-
     #[account(mut)]
-    pub token_mint: Box<Account<'info, Mint>>, 
-   
+    pub token_mint: Box<Account<'info, Mint>>,
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
-
 
 #[derive(Accounts)]
 pub struct WithdrawUsdc<'info> {
@@ -862,134 +854,9 @@ pub struct WithdrawUsdc<'info> {
 
     pub token_program: Program<'info, Token>,
 }
-#[derive(Accounts)]
-pub struct InvestUsdc<'info> {
-    #[account(
-        init_if_needed,
-        space=8 + std::mem::size_of::<InvestmentData>(),
-        payer=investor,
-        seeds=[DATA_SEED, investor.key().as_ref()],
-        bump
-    )]
-    pub data: Box<Account<'info, InvestmentData>>,
-
-    #[account(mut)]
-    pub investor: Signer<'info>,
-
-    #[account(
-        mut,
-        seeds = [PRESALE_SEED],
-        bump
-    )]
-    pub presale: Box<Account<'info, PresaleInfo>>,
-
-    // Presale's USDC Token Account
-    #[account(
-        mut,
-        associated_token::mint = usdc_mint,
-        associated_token::authority = presale
-    )]
-    pub presale_usdc_account: Box<Account<'info, TokenAccount>>,
-
-    // Investor's USDC Token Account
-    #[account(
-        mut,
-        associated_token::mint = usdc_mint,
-        associated_token::authority = investor
-    )]
-    pub investor_usdc_account: Box<Account<'info, TokenAccount>>,
-
-    // Presale's Presale Token Account
-    #[account(
-        mut,
-        associated_token::mint = token_mint,
-        associated_token::authority = presale
-    )]
-    pub presale_token_account: Box<Account<'info, TokenAccount>>,
-
-    // Investor's Token Account (where presale tokens are sent)
-    #[account(
-        mut,
-        associated_token::mint = token_mint,
-        associated_token::authority = investor,
-    )]
-    pub investor_token_account: Box<Account<'info, TokenAccount>>,
-
-    #[account(mut)]
-    pub token_mint: Box<Account<'info, Mint>>, 
-    
-    #[account(
-        constraint = usdc_mint.key() == Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").map_err(|_| CustomError::InvalidToken)? @ CustomError::InvalidToken
-    )]
-    pub usdc_mint: Box<Account<'info, Mint>>,
-
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-}
-#[derive(Accounts)]
-pub struct Invest<'info> {
-    #[account(
-        init_if_needed,
-        /*
-        Discriminator: 8 bytes
-        InvestmentData : size of InvestmentData
-         */
-        space=8 + std::mem::size_of::<InvestmentData>(),
-        payer=from,
-        seeds=[DATA_SEED,from.key().as_ref()],
-        bump
-
-    )]
-    pub data: Box<Account<'info, InvestmentData>>,
-
-    #[account(mut)]
-    pub from: Signer<'info>,
-    #[account(
-        mut,
-        seeds = [PRESALE_SEED],
-        bump
-    )]
-    pub presale: Box<Account<'info,PresaleInfo>>,
-    
-
-
-
-    #[account(
-        init_if_needed, 
-        payer = signer, 
-        associated_token::mint = token_mint,
-        associated_token::authority = presale
-    )]
-    pub presale_token_account: Box<Account<'info, TokenAccount>>,
-    
-    #[account(
-        init_if_needed,
-        payer = signer,
-        associated_token::mint = token_mint,
-        associated_token::authority = signer,
-    )]
-    pub signer_token_account: Box<Account<'info, TokenAccount>>,
-
- 
-
-    #[account(mut)]
-    pub signer: Signer<'info>,
-
-
-    #[account(mut)]
-    pub token_mint: Box<Account<'info, Mint>>, 
-   
-
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-}
-
 
 #[derive(Accounts)]
 pub struct WithdrawSol<'info> {
- 
     #[account(
         mut,
         constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
@@ -1000,20 +867,18 @@ pub struct WithdrawSol<'info> {
         seeds = [PRESALE_SEED],
         bump
     )]
-    pub presale: Box<Account<'info,PresaleInfo>>,
+    pub presale: Box<Account<'info, PresaleInfo>>,
 }
 
 #[derive(Accounts)]
 pub struct WithdrawTokens<'info> {
-
-
     #[account(
         mut,
         associated_token::mint = token_mint,
         associated_token::authority = presale.key()
     )]
     pub presale_token_account: Box<Account<'info, TokenAccount>>,
-    
+
     #[account(
         mut,
         associated_token::mint = token_mint,
@@ -1034,15 +899,65 @@ pub struct WithdrawTokens<'info> {
     )]
     pub signer: Signer<'info>,
 
-
     #[account(mut)]
-    pub token_mint: Box<Account<'info, Mint>>, 
-   
+    pub token_mint: Box<Account<'info, Mint>>,
 
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
+#[derive(Accounts)]
+pub struct StakingWithdrawTokens<'info> {
+    #[account(
+        mut,
+        associated_token::mint = token_mint,
+        associated_token::authority = staking.key()
+    )]
+    pub staking_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        associated_token::mint = token_mint,
+        associated_token::authority = signer,
+    )]
+    pub signer_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        seeds = [STAKING_SEED],
+        bump
+    )]
+    pub staking: Box<Account<'info, StakingInfo>>,
+
+    #[account(
+        mut,
+        constraint = signer.key() == staking.authority.key() @ CustomError::Unauthorized,
+    )]
+    pub signer: Signer<'info>,
+
+    #[account(mut)]
+    pub token_mint: Box<Account<'info, Mint>>,
+
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+}
+
+#[derive(Accounts)]
+pub struct UnlockStaking<'info> {
+    #[account(
+        mut,
+        seeds = [STAKING_SEED],
+        bump
+    )]
+    pub staking: Box<Account<'info, StakingInfo>>,
+
+    #[account(
+        mut,
+        constraint = signer.key() == staking.authority.key() @ CustomError::Unauthorized,
+    )]
+    pub signer: Signer<'info>,
+}
 
 #[derive(Accounts)]
 pub struct UpdateTokenAddress<'info> {
@@ -1063,7 +978,6 @@ pub struct UpdateTokenAddress<'info> {
         constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
     )]
     pub signer: Signer<'info>,
-    
 }
 
 #[derive(Accounts)]
@@ -1080,10 +994,11 @@ pub struct StopPresale<'info> {
         constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
     )]
     pub signer: Signer<'info>,
-    
 }
 
-// Custom Errors
+////////////////////////////////////////////////////////////
+//                        Custom Errors
+////////////////////////////////////////////////////////////
 #[error_code]
 pub enum CustomError {
     #[msg("Insufficient funds")]
@@ -1113,4 +1028,3 @@ pub enum CustomError {
     #[msg("NoRewards")]
     NoRewards,
 }
-
