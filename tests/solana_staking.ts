@@ -4,6 +4,8 @@ import { SolanaStaking } from "../target/types/solana_staking";
 import { assert } from "chai";
 import { BN } from "bn.js";
 import { SolanaSpl } from "../target/types/solana_spl";
+import { SolanaPresale } from "../target/types/solana_presale";
+
 // import { createAccount, createAssociatedTokenAccount, createMint, getAccount, getAssociatedTokenAddress, mintTo,transfer } from "@solana/spl-token";
 
 async function confirmTransaction(tx:string) {
@@ -32,7 +34,6 @@ type stakingInfo= {
   totalTokensStaked: anchor.BN;
   totalTokensRewarded: anchor.BN;
   stakingStartDate: anchor.BN;
-  isLive: boolean;
   allowClaiming: boolean;
   authority: anchor.web3.PublicKey;
 }
@@ -86,7 +87,7 @@ describe("solana staking testcases", () => {
   // Configure the client to use the local cluster.
   anchor.setProvider(anchor.AnchorProvider.env());
 
-  const program = anchor.workspace.SolanaStaking as Program<SolanaStaking>;
+  const program = anchor.workspace.SolanaPresale as Program<SolanaPresale>;
   const token = anchor.workspace.SolanaSpl as Program<SolanaSpl>;
   const metadata = {
     name: "lamport Token",
@@ -121,28 +122,7 @@ describe("solana staking testcases", () => {
     await airdropSol(account2.publicKey, 3*1e9); // 3 SOL
   })
 
-  it("start staking", async () => {
-   
-    const context = {
-      signer:account1,
-      staking:stakingPda,
-      tokenMint:mint,
-      systemProgram: anchor.web3.SystemProgram.programId,
-      
-    }
 
-    // Add your test here.
-    await program.methods.initializer(
-    )        
-    .accounts(context)
-    .rpc();
-
-
-
-    const data = await program.account.stakingInfo.fetch(stakingPda)
-    assert.equal(true,data.isLive);
-    assert.equal(true,data.isInitialized);
-  });
 
  it("transfer tokens to staking", async () => {
     const transferAmount = new anchor.BN((1000_000_000 * 10 ** metadata.decimals).toString())

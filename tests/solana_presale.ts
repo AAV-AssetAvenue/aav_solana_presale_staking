@@ -55,10 +55,17 @@ describe("solana presale testcases", () => {
   const MINT_SEED = "token-mint";
   const DATA_SEED = "my_data";
   const PRESALE_SEED = "solana_presale";
+  const STAKING_SEED = "solana_staking";
+
   const [mint] = anchor.web3.PublicKey.findProgramAddressSync(
     [Buffer.from(MINT_SEED)],
     token.programId
   );
+
+  const [stakingPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from(STAKING_SEED)],
+      program.programId
+    );
   const METADATA_SEED = "metadata";
 
   const [metadataAddress] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -108,19 +115,32 @@ it("init token",async()=>{
 
 
   it("start presale", async () => {
-   
+    const presale_ata = anchor.utils.token.associatedAddress({
+      mint: mint,
+      owner: presalePda,
+    });
+    const staking_ata = anchor.utils.token.associatedAddress({
+      mint: mint,
+      owner: stakingPda,
+    });
     const startPresaleContext = {
       signer:account1,
       presale:presalePda,
+      staking:stakingPda,
       tokenMint:mint,
+      stakingTokenAccount:staking_ata,
+      presaleTokenAccount:presale_ata,
       systemProgram: anchor.web3.SystemProgram.programId,
+      tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+      associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
       
     }
 
     // Add your test here.
     await program.methods.initializer(
       new BN(date), // startTime
-      new BN(368664) // pricePerToken
+      new BN(368664), // pricePerTokenInSol
+      new BN(79067) // pricePerTokenInUsdc
     )        
     .accounts(startPresaleContext)
     .rpc();
@@ -130,8 +150,16 @@ it("init token",async()=>{
     const data = await program.account.presaleInfo.fetch(presalePda)
     assert.equal(date,Number(data.startTime));
     assert.equal(368664,Number(data.pricePerTokenInSol));
+    assert.equal(79067,Number(data.pricePerTokenInUsdc));
     assert.equal(true,data.isLive);
     assert.equal(true,data.isInitialized);
+
+
+
+
+ 
+
+
   });
 
   it("mint token",async()=>{
@@ -315,7 +343,7 @@ it("init token",async()=>{
     }
 
     // Add your test here.
-    await program.methods.emergencyWithdrawTokens()        
+    await program.methods.presaleEmergencyWithdrawTokens()        
     .accounts(context)
     .rpc();
     const balance = (await program.provider.connection.getTokenAccountBalance(reciever_ata))

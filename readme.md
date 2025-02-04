@@ -25,3 +25,22 @@ Month 11	- 16,096 tokens/day	482,875 tokens
 Month 12	- 16,438 tokens/day	493,125 tokens
 
 This ads up to 5.000.000 AAV
+
+
+token_mint =  HtcmNSmpM6xGWLH7TcUiyjXQcej32qc15wyzawJYKNMn
+spl-token create-account HtcmNSmpM6xGWLH7TcUiyjXQcej32qc15wyzawJYKNMn --owner H1wj3faihEmD3FG64zQCpTJVzjfF4yebMHtTZCDQkt7Z  --fee-payer ~/.config/solana/id.json
+
+
+
+
+## deployment cost
+- contract deployment cost
+-10.11265 sol
+-network fee 0.00016
+
+-3.33786sol
+-network fee 0.00001
+
+
+-initialization cost 0.00748 sol
+-network fee 0.00016

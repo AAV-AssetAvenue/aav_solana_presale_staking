@@ -273,6 +273,57 @@ pub struct Stake<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
+#[derive(Accounts)]
+
+pub struct Unstake<'info> {
+    #[account(
+        mut,
+        seeds = [STAKING_DATA_SEED, signer.key().as_ref()], 
+        bump
+    )]
+    pub staking_data: Box<Account<'info, StakingData>>,
+
+    #[account(mut)]
+    pub from: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [STAKING_SEED],
+        bump
+    )]
+    pub staking: Box<Account<'info,StakingInfo>>,
+    
+
+
+
+    #[account(
+        mut,
+        associated_token::mint = token_mint,
+        associated_token::authority = staking.key()
+    )]
+    pub staking_token_account: Box<Account<'info, TokenAccount>>,
+    
+    #[account(
+        init_if_needed,
+        payer = signer,
+        associated_token::mint = token_mint,
+        associated_token::authority = signer,
+    )]
+    pub signer_token_account: Box<Account<'info, TokenAccount>>,
+
+ 
+    #[account(mut)]
+    pub signer: Signer<'info>,
+
+
+    #[account(mut)]
+    pub token_mint: Box<Account<'info, Mint>>, 
+   
+
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+}
 
 #[derive(Accounts)]
 pub struct WithdrawTokens<'info> {
@@ -342,57 +393,6 @@ pub struct UpdateTokenAddress<'info> {
     
 }
 
-#[derive(Accounts)]
-
-pub struct Unstake<'info> {
-    #[account(
-        mut,
-        seeds = [STAKING_DATA_SEED, signer.key().as_ref()], 
-        bump
-    )]
-    pub staking_data: Box<Account<'info, StakingData>>,
-
-    #[account(mut)]
-    pub from: Signer<'info>,
-
-    #[account(
-        mut,
-        seeds = [STAKING_SEED],
-        bump
-    )]
-    pub staking: Box<Account<'info,StakingInfo>>,
-    
-
-
-
-    #[account(
-        mut,
-        associated_token::mint = token_mint,
-        associated_token::authority = staking.key()
-    )]
-    pub staking_token_account: Box<Account<'info, TokenAccount>>,
-    
-    #[account(
-        init_if_needed,
-        payer = signer,
-        associated_token::mint = token_mint,
-        associated_token::authority = signer,
-    )]
-    pub signer_token_account: Box<Account<'info, TokenAccount>>,
-
- 
-    #[account(mut)]
-    pub signer: Signer<'info>,
-
-
-    #[account(mut)]
-    pub token_mint: Box<Account<'info, Mint>>, 
-   
-
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-}
 
 
 #[derive(Accounts)]
