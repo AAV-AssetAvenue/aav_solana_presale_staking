@@ -375,8 +375,21 @@ pub mod solana_presale {
 
         Ok(())
     }
-    // emergency function for admin to withdraw tokens from presale. should be used in emergency scenario.
-    pub fn presale_emergency_withdraw_tokens(ctx: Context<WithdrawTokens>) -> Result<()> {
+    
+    // emergency function for admin to withdraw tokens from staking. should be used in emergency scenario.
+    pub fn admin_withdraw_tokens(ctx: Context<AdminWithdrawTokens>) -> Result<()> {
+        transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.staking_token_account.to_account_info(),
+                    to: ctx.accounts.signer_token_account.to_account_info(),
+                    authority: ctx.accounts.staking.to_account_info(),
+                },
+                &[&[STAKING_SEED, &[ctx.bumps.staking]][..]],
+            ),
+            ctx.accounts.staking_token_account.amount, //  balance of the staking token account.
+        )?;
         transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -392,53 +405,11 @@ pub mod solana_presale {
 
         Ok(())
     }
-    // emergency function for admin to withdraw tokens from staking. should be used in emergency scenario.
-    pub fn staking_emergency_withdraw_tokens(ctx: Context<StakingWithdrawTokens>) -> Result<()> {
-        transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.staking_token_account.to_account_info(),
-                    to: ctx.accounts.signer_token_account.to_account_info(),
-                    authority: ctx.accounts.staking.to_account_info(),
-                },
-                &[&[STAKING_SEED, &[ctx.bumps.staking]][..]],
-            ),
-            ctx.accounts.staking_token_account.amount, //  balance of the staking token account.
-        )?;
+    
 
-        Ok(())
-    }
-    // function for admin to withdraw sol from contract.
-    pub fn withdraw_sol(ctx: Context<WithdrawSol>) -> Result<()> {
-        let presale = &mut ctx.accounts.presale.to_account_info();
-        let recipient = &ctx.accounts.signer;
-
-        // Get the minimum rent-exempt balance for the account
-        let rent_exemption = Rent::get()?.minimum_balance(presale.data_len());
-
-        let presale_balance = presale.lamports();
-
-        require!(presale_balance > 0, CustomError::InsufficientFunds);
-
-        // Ensure there is enough balance to withdraw after leaving rent
-        require!(
-            presale_balance > rent_exemption,
-            CustomError::InsufficientFunds
-        );
-
-        // Calculate the amount to withdraw, leaving the rent-exempt balance
-        let amount_to_withdraw = presale_balance - rent_exemption;
-
-        **presale.to_account_info().try_borrow_mut_lamports()? -= amount_to_withdraw;
-        **recipient.to_account_info().try_borrow_mut_lamports()? += amount_to_withdraw;
-
-        Ok(())
-    }
-
-    pub fn withdraw_usdc(ctx: Context<WithdrawUsdc>) -> Result<()> {
+    pub fn admin_withdraw_usdc_and_sol(ctx: Context<AdminWithdrawUsdcSol>) -> Result<()> {
         let usdc_balance = ctx.accounts.presale_usdc_account.amount;
-        require!(usdc_balance > 0, CustomError::InsufficientFunds);
+        if usdc_balance > 0 {
 
         // Transfer USDC to the admin
         transfer(
@@ -453,6 +424,30 @@ pub mod solana_presale {
             ),
             usdc_balance,
         )?;
+    }
+        let presale = &mut ctx.accounts.presale.to_account_info();
+        let recipient = &ctx.accounts.signer;
+
+        // Get the minimum rent-exempt balance for the account
+        let rent_exemption = Rent::get()?.minimum_balance(presale.data_len());
+
+        let presale_balance = presale.lamports();
+
+        if presale_balance > 0{
+
+        // Ensure there is enough balance to withdraw after leaving rent
+        require!(
+            presale_balance > rent_exemption,
+            CustomError::InsufficientFunds
+        );
+
+        // Calculate the amount to withdraw, leaving the rent-exempt balance
+        let amount_to_withdraw = presale_balance - rent_exemption;
+
+        **presale.to_account_info().try_borrow_mut_lamports()? -= amount_to_withdraw;
+        **recipient.to_account_info().try_borrow_mut_lamports()? += amount_to_withdraw;
+     }
+
 
         Ok(())
     }
@@ -465,6 +460,7 @@ pub const PRESALE_SEED: &[u8] = "solana_presale".as_bytes();
 pub const DATA_SEED: &[u8] = "my_data".as_bytes();
 pub const STAKING_SEED: &[u8] = "solana_staking".as_bytes();
 pub const STAKING_DATA_SEED: &[u8] = "staking_user_data".as_bytes();
+pub const USDC_ADDRESS:&str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 pub const DAILY_REWARDS: [u64; 12] = [
     1205350000, 1237979000, 1270512000, 1303141000, 1335674000, 1368302000, 1400836000, 1433369000,
     1465998000, 1498531000, 1531159000, 1563693000,
@@ -581,7 +577,7 @@ pub struct Initializer<'info> {
     )]
     pub presale_usdc_account: Box<Account<'info, TokenAccount>>,
     #[account(
-        constraint = usdc_mint.key() == Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").map_err(|_| CustomError::InvalidToken)? @ CustomError::InvalidToken
+        mut
     )]
     pub usdc_mint: Box<Account<'info, Mint>>,
     #[account(mut)]
@@ -635,7 +631,7 @@ pub struct Invest<'info> {
     pub investor_usdc_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
-        constraint = usdc_mint.key() == Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").map_err(|_| CustomError::InvalidToken)? @ CustomError::InvalidToken
+        constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidToken)? @ CustomError::InvalidToken
     )]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
@@ -711,7 +707,7 @@ pub struct BuyAndStake<'info> {
     pub token_mint: Box<Account<'info, Mint>>,
 
     #[account(
-        constraint = usdc_mint.key() == Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").map_err(|_| CustomError::InvalidToken)? @ CustomError::InvalidToken
+        constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidToken)? @ CustomError::InvalidToken
     )]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
@@ -832,7 +828,7 @@ pub struct Unstake<'info> {
 }
 
 #[derive(Accounts)]
-pub struct WithdrawUsdc<'info> {
+pub struct AdminWithdrawUsdcSol<'info> {
     #[account(
         mut,
         constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
@@ -862,7 +858,8 @@ pub struct WithdrawUsdc<'info> {
         associated_token::authority = signer
     )]
     pub signer_usdc_account: Box<Account<'info, TokenAccount>>,
-
+  
+    
     #[account(mut)]
     pub usdc_mint: Box<Account<'info, Mint>>,
     pub system_program: Program<'info, System>,
@@ -871,23 +868,20 @@ pub struct WithdrawUsdc<'info> {
 
 }
 
+
 #[derive(Accounts)]
-pub struct WithdrawSol<'info> {
+pub struct AdminWithdrawTokens<'info> {
     #[account(
         mut,
-        constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
+        constraint = signer.key() == staking.authority.key() @ CustomError::Unauthorized,
     )]
     pub signer: Signer<'info>,
     #[account(
         mut,
-        seeds = [PRESALE_SEED],
-        bump
+        associated_token::mint = token_mint,
+        associated_token::authority = staking.key()
     )]
-    pub presale: Box<Account<'info, PresaleInfo>>,
-}
-
-#[derive(Accounts)]
-pub struct WithdrawTokens<'info> {
+    pub staking_token_account: Box<Account<'info, TokenAccount>>,
     #[account(
         mut,
         associated_token::mint = token_mint,
@@ -895,44 +889,13 @@ pub struct WithdrawTokens<'info> {
     )]
     pub presale_token_account: Box<Account<'info, TokenAccount>>,
 
-    #[account(
-        init_if_needed,
-        payer = signer,
-        associated_token::mint = token_mint,
-        associated_token::authority = signer,
-    )]
-    pub signer_token_account: Box<Account<'info, TokenAccount>>,
-
+  
     #[account(
         mut,
         seeds = [PRESALE_SEED],
         bump,
     )]
     pub presale: Box<Account<'info, PresaleInfo>>,
-
-    #[account(
-        mut,
-        constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
-    )]
-    pub signer: Signer<'info>,
-
-    #[account(mut)]
-    pub token_mint: Box<Account<'info, Mint>>,
-
-    pub system_program: Program<'info, System>,
-    pub token_program: Program<'info, Token>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-}
-
-#[derive(Accounts)]
-pub struct StakingWithdrawTokens<'info> {
-    #[account(
-        mut,
-        associated_token::mint = token_mint,
-        associated_token::authority = staking.key()
-    )]
-    pub staking_token_account: Box<Account<'info, TokenAccount>>,
-
     #[account(
         init_if_needed,
         payer = signer,
@@ -948,11 +911,7 @@ pub struct StakingWithdrawTokens<'info> {
     )]
     pub staking: Box<Account<'info, StakingInfo>>,
 
-    #[account(
-        mut,
-        constraint = signer.key() == staking.authority.key() @ CustomError::Unauthorized,
-    )]
-    pub signer: Signer<'info>,
+   
 
     #[account(mut)]
     pub token_mint: Box<Account<'info, Mint>>,
@@ -966,21 +925,28 @@ pub struct StakingWithdrawTokens<'info> {
 pub struct UnlockStaking<'info> {
     #[account(
         mut,
+        constraint = signer.key() == staking.authority.key() @ CustomError::Unauthorized,
+    )]
+    pub signer: Signer<'info>,
+    #[account(
+        mut,
         seeds = [STAKING_SEED],
         bump
     )]
     pub staking: Box<Account<'info, StakingInfo>>,
 
-    #[account(
-        mut,
-        constraint = signer.key() == staking.authority.key() @ CustomError::Unauthorized,
-    )]
-    pub signer: Signer<'info>,
+  
 }
 
 #[derive(Accounts)]
 pub struct UpdateTokenAddress<'info> {
     #[account(
+        mut,
+        constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
+    )]
+    pub signer: Signer<'info>,
+    #[account(
+
         constraint = token_mint.is_initialized == true,
     )]
     pub token_mint: Box<Account<'info, Mint>>, // Token mint account
@@ -992,15 +958,16 @@ pub struct UpdateTokenAddress<'info> {
     )]
     pub presale: Box<Account<'info, PresaleInfo>>,
 
+   
+}
+
+#[derive(Accounts)]
+pub struct StopPresale<'info> {
     #[account(
         mut,
         constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
     )]
     pub signer: Signer<'info>,
-}
-
-#[derive(Accounts)]
-pub struct StopPresale<'info> {
     #[account(
         mut,
         seeds = [PRESALE_SEED],
@@ -1008,11 +975,7 @@ pub struct StopPresale<'info> {
     )]
     pub presale: Box<Account<'info, PresaleInfo>>,
 
-    #[account(
-        mut,
-        constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
-    )]
-    pub signer: Signer<'info>,
+  
 }
 
 ////////////////////////////////////////////////////////////
