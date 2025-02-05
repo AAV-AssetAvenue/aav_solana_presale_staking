@@ -144,6 +144,7 @@ pub mod solana_presale {
         let presale_data = &mut ctx.accounts.presale;
         let staking_data = &mut ctx.accounts.staking;
         let user_staking_data = &mut ctx.accounts.staking_data;
+        let user_data = &mut ctx.accounts.data;
 
         require!(presale_data.is_live, CustomError::PresaleNotLive);
 
@@ -168,8 +169,17 @@ pub mod solana_presale {
             );
             value * 100000 / presale_data.price_per_token_in_usdc
         };
+        if payment_token == 0 {
+            user_data.sol_investment_amount += value;
+            presale_data.sol_amount_raised += value;
+        } else {
+            user_data.usdc_investment_amount += value;
+            presale_data.usdc_amount_raised += value;
+        }
 
         presale_data.total_tokens_sold += number_of_tokens;
+
+
         staking_data.total_tokens_staked += number_of_tokens;
 
         // Update user staking balance
@@ -460,7 +470,7 @@ pub const PRESALE_SEED: &[u8] = "solana_presale".as_bytes();
 pub const DATA_SEED: &[u8] = "my_data".as_bytes();
 pub const STAKING_SEED: &[u8] = "solana_staking".as_bytes();
 pub const STAKING_DATA_SEED: &[u8] = "staking_user_data".as_bytes();
-pub const USDC_ADDRESS:&str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+pub const USDC_ADDRESS:&str = "7bjWGkAyy4pRGZtSqhJDJVdYtf3oNnWXKUfmo89o8VGr";
 pub const DAILY_REWARDS: [u64; 12] = [
     1205350000, 1237979000, 1270512000, 1303141000, 1335674000, 1368302000, 1400836000, 1433369000,
     1465998000, 1498531000, 1531159000, 1563693000,
@@ -570,15 +580,12 @@ pub struct Initializer<'info> {
     pub token_mint: Box<Account<'info, Mint>>, // Token mint account
     // Presale's USDC Token Account
     #[account(
-        init_if_needed,
-        payer = signer,
+        mut,
         associated_token::mint = usdc_mint,
         associated_token::authority = presale
     )]
     pub presale_usdc_account: Box<Account<'info, TokenAccount>>,
-    #[account(
-        mut
-    )]
+    #[account(mut)]
     pub usdc_mint: Box<Account<'info, Mint>>,
     #[account(mut)]
     pub signer: Signer<'info>,
@@ -623,15 +630,15 @@ pub struct Invest<'info> {
 
     // Investor's USDC Token Account
     #[account(
-        init_if_needed,
-        payer = signer,
+        mut,
         associated_token::mint = usdc_mint,
         associated_token::authority = signer
     )]
     pub investor_usdc_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
-        constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidToken)? @ CustomError::InvalidToken
+        mut
+        // constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidToken)? @ CustomError::InvalidToken
     )]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
@@ -676,6 +683,12 @@ pub struct BuyAndStake<'info> {
         bump
     )]
     pub staking: Box<Account<'info, StakingInfo>>,
+    #[account(
+        mut,
+        seeds = [STAKING_SEED,investor.key().as_ref()],
+        bump
+    )]
+    pub data: Box<Account<'info, InvestmentData>>,
 
     #[account(
         init_if_needed,
@@ -719,8 +732,7 @@ pub struct BuyAndStake<'info> {
     pub presale_usdc_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
-        init_if_needed,
-        payer = investor,
+        mut,
         associated_token::mint = usdc_mint,
         associated_token::authority = investor
     )]
@@ -852,8 +864,7 @@ pub struct AdminWithdrawUsdcSol<'info> {
 
     // Admin's USDC Token Account (where USDC is sent)
     #[account(
-        init_if_needed,
-        payer = signer,
+        mut,
         associated_token::mint = usdc_mint,
         associated_token::authority = signer
     )]
