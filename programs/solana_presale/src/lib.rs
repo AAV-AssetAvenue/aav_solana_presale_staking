@@ -116,7 +116,7 @@ pub mod solana_presale {
                 CpiContext::new(
                     ctx.accounts.token_program.to_account_info(),
                     Transfer {
-                        from: ctx.accounts.investor_usdc_account.to_account_info(),
+                        from: ctx.accounts.signer_usdc_account.to_account_info(),
                         to: ctx.accounts.presale_usdc_account.to_account_info(),
                         authority: ctx.accounts.signer.to_account_info(),
                     },
@@ -144,7 +144,7 @@ pub mod solana_presale {
         let presale_data = &mut ctx.accounts.presale;
         let staking_data = &mut ctx.accounts.staking;
         let user_staking_data = &mut ctx.accounts.staking_data;
-        let user_data = &mut ctx.accounts.data;
+        let user_data = &mut ctx.accounts.investment_data;
 
         require!(presale_data.is_live, CustomError::PresaleNotLive);
 
@@ -153,7 +153,11 @@ pub mod solana_presale {
             cur_timestamp >= presale_data.start_time,
             CustomError::PresaleNotStarted
         );
-
+        if !user_staking_data.is_first_time {
+            let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
+            user_staking_data.stake_date = cur_timestamp;
+            user_staking_data.is_first_time = true;
+        }
         let number_of_tokens = if payment_token == 0 {
             // SOL Payment
             require!(
@@ -184,32 +188,33 @@ pub mod solana_presale {
 
         // Update user staking balance
         user_staking_data.total_staking_balance += number_of_tokens;
+        let from_account = &ctx.accounts.from;
+        let presale = presale_data.to_account_info();
 
         if payment_token == 0 {
-            // Handle SOL Transfer
-            let transfer_instruction = solana_program::system_instruction::transfer(
-                ctx.accounts.investor.key,
-                presale_data.to_account_info().key,
-                value,
-            );
+         // Transfer Sol from investor to presale account
+         let transfer_instruction =
+         solana_program::system_instruction::transfer(from_account.key, presale.key, value);
 
-            anchor_lang::solana_program::program::invoke(
-                &transfer_instruction,
-                &[
-                    ctx.accounts.investor.to_account_info(),
-                    presale_data.to_account_info(),
-                    ctx.accounts.system_program.to_account_info(),
-                ],
-            )?;
+     // Invoke the transfer instruction for sol
+     anchor_lang::solana_program::program::invoke(
+         &transfer_instruction,
+         &[
+             from_account.to_account_info(),
+             presale.to_account_info(),
+             ctx.accounts.system_program.to_account_info(),
+         ],
+     )?;
+  
         } else {
             // Handle USDC Transfer
             transfer(
                 CpiContext::new(
                     ctx.accounts.token_program.to_account_info(),
                     Transfer {
-                        from: ctx.accounts.investor_usdc_account.to_account_info(),
+                        from: ctx.accounts.signer_usdc_account.to_account_info(),
                         to: ctx.accounts.presale_usdc_account.to_account_info(),
-                        authority: ctx.accounts.investor.to_account_info(),
+                        authority: ctx.accounts.signer.to_account_info(),
                     },
                 ),
                 value,
@@ -470,7 +475,7 @@ pub const PRESALE_SEED: &[u8] = "solana_presale".as_bytes();
 pub const DATA_SEED: &[u8] = "my_data".as_bytes();
 pub const STAKING_SEED: &[u8] = "solana_staking".as_bytes();
 pub const STAKING_DATA_SEED: &[u8] = "staking_user_data".as_bytes();
-pub const USDC_ADDRESS:&str = "7bjWGkAyy4pRGZtSqhJDJVdYtf3oNnWXKUfmo89o8VGr";
+pub const USDC_ADDRESS:&str = "4Fa3EWgea8bYwFjRdAxn9b7FhzFSYZR41Tnkn39SvSLX";
 pub const DAILY_REWARDS: [u64; 12] = [
     1205350000, 1237979000, 1270512000, 1303141000, 1335674000, 1368302000, 1400836000, 1433369000,
     1465998000, 1498531000, 1531159000, 1563693000,
@@ -610,15 +615,18 @@ pub struct Invest<'info> {
     )]
     pub data: Box<Account<'info, InvestmentData>>,
 
-    #[account(mut)]
-    pub from: Signer<'info>,
-
+ 
     #[account(
         mut,
         seeds = [PRESALE_SEED],
         bump
     )]
     pub presale: Box<Account<'info, PresaleInfo>>,
+
+    #[account(mut)]
+    pub from: Signer<'info>,
+    #[account(mut)]
+    pub signer: Signer<'info>,
 
     // Presale's USDC Token Account
     #[account(
@@ -634,7 +642,7 @@ pub struct Invest<'info> {
         associated_token::mint = usdc_mint,
         associated_token::authority = signer
     )]
-    pub investor_usdc_account: Box<Account<'info, TokenAccount>>,
+    pub signer_usdc_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut
@@ -657,8 +665,7 @@ pub struct Invest<'info> {
     )]
     pub signer_token_account: Box<Account<'info, TokenAccount>>,
 
-    #[account(mut)]
-    pub signer: Signer<'info>,
+  
 
     #[account(mut)]
     pub token_mint: Box<Account<'info, Mint>>,
@@ -670,6 +677,35 @@ pub struct Invest<'info> {
 
 #[derive(Accounts)]
 pub struct BuyAndStake<'info> {
+    #[account(
+        init_if_needed,
+        /*
+        Discriminator: 8 bytes
+        InvestmentData : size of InvestmentData
+         */
+        space=8 + std::mem::size_of::<InvestmentData>(),
+        payer=signer,
+        seeds=[DATA_SEED,signer.key().as_ref()],
+        bump
+
+    )]
+    pub investment_data: Box<Account<'info, InvestmentData>>,
+
+    #[account(
+        init_if_needed,
+        /*
+        Discriminator: 8 bytes
+        InvestmentData : size of InvestmentData
+         */
+        space = 8 +  std::mem::size_of::<StakingData>(),  
+        payer=signer,
+        seeds=[STAKING_DATA_SEED,signer.key().as_ref()],
+        bump
+
+    )]
+    pub staking_data: Box<Account<'info, StakingData>>,
+
+    
     #[account(
         mut,
         seeds = [PRESALE_SEED],
@@ -683,25 +719,16 @@ pub struct BuyAndStake<'info> {
         bump
     )]
     pub staking: Box<Account<'info, StakingInfo>>,
-    #[account(
-        mut,
-        seeds = [STAKING_SEED,investor.key().as_ref()],
-        bump
-    )]
-    pub data: Box<Account<'info, InvestmentData>>,
-
-    #[account(
-        init_if_needed,
-        space = 8 + std::mem::size_of::<StakingData>(),
-        payer=investor,
-        seeds=[STAKING_DATA_SEED, investor.key().as_ref()],
-        bump
-    )]
-    pub staking_data: Box<Account<'info, StakingData>>,
+   
+    
+    #[account(mut)]
+    pub from: Signer<'info>,
+    #[account(mut)]
+    pub signer: Signer<'info>,
 
     #[account(mut)]
-    pub investor: Signer<'info>,
-
+    pub token_mint: Box<Account<'info, Mint>>,
+    
     #[account(
         mut,
         associated_token::mint = token_mint,
@@ -716,11 +743,18 @@ pub struct BuyAndStake<'info> {
     )]
     pub staking_token_account: Box<Account<'info, TokenAccount>>,
 
-    #[account(mut)]
-    pub token_mint: Box<Account<'info, Mint>>,
+
 
     #[account(
-        constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidToken)? @ CustomError::InvalidToken
+        init_if_needed,
+        payer = signer,
+        associated_token::mint = token_mint,
+        associated_token::authority = signer,
+    )]
+    pub signer_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        // constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidToken)? @ CustomError::InvalidToken
     )]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
@@ -734,9 +768,9 @@ pub struct BuyAndStake<'info> {
     #[account(
         mut,
         associated_token::mint = usdc_mint,
-        associated_token::authority = investor
+        associated_token::authority = signer
     )]
-    pub investor_usdc_account: Box<Account<'info, TokenAccount>>,
+    pub signer_usdc_account: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
