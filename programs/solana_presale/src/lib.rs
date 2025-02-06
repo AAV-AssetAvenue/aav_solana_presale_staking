@@ -158,6 +158,7 @@ pub mod solana_presale {
             user_staking_data.stake_date = cur_timestamp;
             user_staking_data.is_first_time = true;
         }
+
         let number_of_tokens = if payment_token == 0 {
             // SOL Payment
             require!(
@@ -192,19 +193,19 @@ pub mod solana_presale {
         let presale = presale_data.to_account_info();
 
         if payment_token == 0 {
-         // Transfer Sol from investor to presale account
-         let transfer_instruction =
-         solana_program::system_instruction::transfer(from_account.key, presale.key, value);
+            // Transfer Sol from investor to presale account
+            let transfer_instruction =
+            solana_program::system_instruction::transfer(from_account.key, presale.key, value);
 
-     // Invoke the transfer instruction for sol
-     anchor_lang::solana_program::program::invoke(
-         &transfer_instruction,
-         &[
-             from_account.to_account_info(),
-             presale.to_account_info(),
-             ctx.accounts.system_program.to_account_info(),
-         ],
-     )?;
+            // Invoke the transfer instruction for sol
+            anchor_lang::solana_program::program::invoke(
+                &transfer_instruction,
+                &[
+                    from_account.to_account_info(),
+                    presale.to_account_info(),
+                    ctx.accounts.system_program.to_account_info(),
+                ],
+            )?;
   
         } else {
             // Handle USDC Transfer

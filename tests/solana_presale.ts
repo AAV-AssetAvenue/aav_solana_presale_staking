@@ -81,7 +81,8 @@ describe("solana presale testcases", async() => {
   );
   const account1 = program.provider.publicKey
   const account2 = anchor.web3.Keypair.generate()
-  const account2Investment= new BN(0.5e9)
+  const account2Investment= new BN(0.5e9) // sol
+  const account2UsdcInvestment= new BN(100e6) // usdc
   const date = Math.floor(new Date().getTime()/1000)
 
   const [presalePda] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -89,6 +90,7 @@ describe("solana presale testcases", async() => {
     program.programId
   );
 let presale_usdc_ata;
+let totalTokenStaked = 0;
   const mintAmount = 100_000_000_000;
   const payer_ata =  anchor.utils.token.associatedAddress({
     mint: mint,
@@ -277,7 +279,7 @@ it("init token",async()=>{
       assert.equal(Number(balance.value.amount),transferAmount* 10 ** metadata.decimals)
   });
 
-  it("invest sol",async()=>{
+  it("invest using sol",async()=>{
     const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from(DATA_SEED),account2.publicKey.toBuffer()],
       program.programId
@@ -328,10 +330,63 @@ it("init token",async()=>{
     assert.equal(Number(presaleBalance.value.amount)-Number(data.numberOfTokens),Number(afterPresaleBalance.value.amount))
     assert.equal(Number(account2Investment),Number(data.solInvestmentAmount))
   })
+
+  it("invest using usdc",async()=>{
+    const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from(DATA_SEED),account2.publicKey.toBuffer()],
+      program.programId
+    );
+   
+    const reciever_ata = anchor.utils.token.associatedAddress({
+      mint: mint,
+      owner: account2.publicKey,
+    });
+  
+    const userUsdcTokenAccount = await getOrCreateAssociatedTokenAccount(
+      program.provider.connection,
+      account2,
+      usdc,  // The mint address
+      account2.publicKey // Owner of the token account
+  );
+  
+  
+    const context = {
+      data:dataPda,
+      from:account2.publicKey,
+      signer:account2.publicKey,
+      presale:presalePda,
+      investor_usdc_account:userUsdcTokenAccount.address,
+      presaleUsdcAccount:presale_usdc_ata.address,
+      usdcMint:usdc,
+      presaleTokenAccount:presale_ata,
+      tokenMint:mint,
+      signerTokenAccount:reciever_ata,
+      systemProgram: anchor.web3.SystemProgram.programId,
+      tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+      associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
+    }
+
+    // Add your test here.
+    
+    await program.methods.invest(account2UsdcInvestment,1)        
+    .accounts(context)
+    .signers([account2])
+    .rpc();
+    
+    const afterPresaleBalance = (await program.provider.connection.getTokenAccountBalance(presale_ata))
+    // let solBalance = await program.account.presaleInfo.fetch(presalePda)
+    // assert.equal(Number(solBalance.amountRaised),2*1e9);
+    const data = await program.account.investmentData.fetch(dataPda)
+    const presaleData = await program.account.presaleInfo.fetch(presalePda)
+    const balance = (await program.provider.connection.getTokenAccountBalance(reciever_ata))
+    assert.equal(Number(balance.value.amount),Number(data.numberOfTokens))
+    assert.equal(Number(mintAmount* 10 ** metadata.decimals)-Number(presaleData.totalTokensSold),Number(afterPresaleBalance.value.amount))
+    assert.equal(Number(account2UsdcInvestment),Number(data.usdcInvestmentAmount))
+  })
  
 
 
-it("buy and stake",async()=>{
+it("buy with sol and stake",async()=>{
  
   const userUsdcTokenAccount = await getOrCreateAssociatedTokenAccount(
     program.provider.connection,
@@ -380,16 +435,87 @@ it("buy and stake",async()=>{
         systemProgram: anchor.web3.SystemProgram.programId,
         associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
       }
-      console.log(JSON.stringify(context))
       // Add your test here.
       await program.methods.buyAndStake(account2Investment,0)        
       .accounts(context)
       .signers([account2])
 
       .rpc(); 
+      const presaleData = await program.account.presaleInfo.fetch(presalePda)
+      const userData = await program.account.stakingData.fetch(stakingDataPda);
+      const stakingData = await program.account.stakingInfo.fetch(stakingPda);
+      totalTokenStaked += Math.floor(Number(account2Investment)*100000/Number(presaleData.pricePerTokenInSol));
 
+      assert.equal(Number(stakingData.totalTokensStaked),totalTokenStaked);
+
+       assert.equal(userData.isFirstTime,true);
+})
+
+
+
+it("buy with usdc and stake",async()=>{
+ 
+  const userUsdcTokenAccount = await getOrCreateAssociatedTokenAccount(
+    program.provider.connection,
+    account2,
+    usdc,  // The mint address
+    account2.publicKey // Owner of the token account
+);
+
+  const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from(DATA_SEED),account2.publicKey.toBuffer()],
+        program.programId
+      );
       
+  const [stakingDataPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from(DATA_SEED_STAKING),account2.publicKey.toBuffer()],
+        program.programId
+      );
+     
+      const reciever_ata = anchor.utils.token.associatedAddress({
+        mint: mint,
+        owner: account2.publicKey,
+      });
+
+
+      const staking_ata = anchor.utils.token.associatedAddress({
+        mint: mint,
+        owner: stakingPda,
+      });
+  
+    
+      const context = {
+        investmentData:dataPda,
+        stakingData:stakingDataPda,
+        presale:presalePda,
+        staking:stakingPda,
+        from:account2.publicKey,
+        signer:account2.publicKey,
+        tokenMint:mint,
+        presaleTokenAccount:presale_ata,
+        stakingTokenAccount:staking_ata,
+        signerTokenAccount:reciever_ata,
+        usdcMint:usdc,
+        presaleUsdcAccount:presale_usdc_ata.address,
+        signerUsdAccount:userUsdcTokenAccount.address,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
+      }
+      // Add your test here.
+      await program.methods.buyAndStake(account2UsdcInvestment,1)        
+      .accounts(context)
+      .signers([account2])
+
+      .rpc(); 
+
+      const presaleData = await program.account.presaleInfo.fetch(presalePda)
+
        const userData = await program.account.stakingData.fetch(stakingDataPda);
+       const stakingData = await program.account.stakingInfo.fetch(stakingPda);
+       totalTokenStaked += Math.floor(Number(account2UsdcInvestment)*100000/Number(presaleData.pricePerTokenInUsdc));
+
+       assert.equal(Number(stakingData.totalTokensStaked),totalTokenStaked);
        assert.equal(userData.isFirstTime,true);
 })
 
