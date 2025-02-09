@@ -316,7 +316,7 @@ it("init token",async()=>{
 
     const presaleBalance = (await program.provider.connection.getTokenAccountBalance(presale_ata))
     // Add your test here.
-    await program.methods.invest(account2Investment,0)        
+    await program.methods.invest(new BN(0.5*1000000000),0)        
     .accounts(context)
     .signers([account2])
     .rpc();

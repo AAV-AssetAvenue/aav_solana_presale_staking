@@ -5,7 +5,7 @@ use anchor_spl::{
 };
 use std::str::FromStr;
 
-declare_id!("G7n94bhEkqKwBkgqVALJ2AzPrugaca5XH2pWw3xy88xB");
+declare_id!("3nnfTx68bKCRXZdZfKoFFfryWbnR3asFGmfLsXNPtXxK");
 
 #[program]
 pub mod solana_presale {
@@ -109,7 +109,6 @@ pub mod solana_presale {
                     ctx.accounts.system_program.to_account_info(),
                 ],
             )?;
-         
         } else {
             // Transfer USDC from investor to presale account
             transfer(
@@ -124,8 +123,8 @@ pub mod solana_presale {
                 value,
             )?;
         }
-         // Transfer Presale Tokens to Investor
-         transfer(
+        // Transfer Presale Tokens to Investor
+        transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
                 Transfer {
@@ -184,7 +183,6 @@ pub mod solana_presale {
 
         presale_data.total_tokens_sold += number_of_tokens;
 
-
         staking_data.total_tokens_staked += number_of_tokens;
 
         // Update user staking balance
@@ -195,7 +193,7 @@ pub mod solana_presale {
         if payment_token == 0 {
             // Transfer Sol from investor to presale account
             let transfer_instruction =
-            solana_program::system_instruction::transfer(from_account.key, presale.key, value);
+                solana_program::system_instruction::transfer(from_account.key, presale.key, value);
 
             // Invoke the transfer instruction for sol
             anchor_lang::solana_program::program::invoke(
@@ -206,7 +204,6 @@ pub mod solana_presale {
                     ctx.accounts.system_program.to_account_info(),
                 ],
             )?;
-  
         } else {
             // Handle USDC Transfer
             transfer(
@@ -391,7 +388,7 @@ pub mod solana_presale {
 
         Ok(())
     }
-    
+
     // emergency function for admin to withdraw tokens from staking. should be used in emergency scenario.
     pub fn admin_withdraw_tokens(ctx: Context<AdminWithdrawTokens>) -> Result<()> {
         transfer(
@@ -421,26 +418,24 @@ pub mod solana_presale {
 
         Ok(())
     }
-    
 
     pub fn admin_withdraw_usdc_and_sol(ctx: Context<AdminWithdrawUsdcSol>) -> Result<()> {
         let usdc_balance = ctx.accounts.presale_usdc_account.amount;
         if usdc_balance > 0 {
-
-        // Transfer USDC to the admin
-        transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.presale_usdc_account.to_account_info(),
-                    to: ctx.accounts.signer_usdc_account.to_account_info(),
-                    authority: ctx.accounts.presale.to_account_info(),
-                },
-                &[&[PRESALE_SEED, &[ctx.bumps.presale]]],
-            ),
-            usdc_balance,
-        )?;
-    }
+            // Transfer USDC to the admin
+            transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.presale_usdc_account.to_account_info(),
+                        to: ctx.accounts.signer_usdc_account.to_account_info(),
+                        authority: ctx.accounts.presale.to_account_info(),
+                    },
+                    &[&[PRESALE_SEED, &[ctx.bumps.presale]]],
+                ),
+                usdc_balance,
+            )?;
+        }
         let presale = &mut ctx.accounts.presale.to_account_info();
         let recipient = &ctx.accounts.signer;
 
@@ -449,21 +444,19 @@ pub mod solana_presale {
 
         let presale_balance = presale.lamports();
 
-        if presale_balance > 0{
+        if presale_balance > 0 {
+            // Ensure there is enough balance to withdraw after leaving rent
+            require!(
+                presale_balance > rent_exemption,
+                CustomError::InsufficientFunds
+            );
 
-        // Ensure there is enough balance to withdraw after leaving rent
-        require!(
-            presale_balance > rent_exemption,
-            CustomError::InsufficientFunds
-        );
+            // Calculate the amount to withdraw, leaving the rent-exempt balance
+            let amount_to_withdraw = presale_balance - rent_exemption;
 
-        // Calculate the amount to withdraw, leaving the rent-exempt balance
-        let amount_to_withdraw = presale_balance - rent_exemption;
-
-        **presale.to_account_info().try_borrow_mut_lamports()? -= amount_to_withdraw;
-        **recipient.to_account_info().try_borrow_mut_lamports()? += amount_to_withdraw;
-     }
-
+            **presale.to_account_info().try_borrow_mut_lamports()? -= amount_to_withdraw;
+            **recipient.to_account_info().try_borrow_mut_lamports()? += amount_to_withdraw;
+        }
 
         Ok(())
     }
@@ -476,7 +469,7 @@ pub const PRESALE_SEED: &[u8] = "solana_presale".as_bytes();
 pub const DATA_SEED: &[u8] = "my_data".as_bytes();
 pub const STAKING_SEED: &[u8] = "solana_staking".as_bytes();
 pub const STAKING_DATA_SEED: &[u8] = "staking_user_data".as_bytes();
-pub const USDC_ADDRESS:&str = "4Fa3EWgea8bYwFjRdAxn9b7FhzFSYZR41Tnkn39SvSLX";
+pub const USDC_ADDRESS: &str = "4Fa3EWgea8bYwFjRdAxn9b7FhzFSYZR41Tnkn39SvSLX";
 pub const DAILY_REWARDS: [u64; 12] = [
     1205350000, 1237979000, 1270512000, 1303141000, 1335674000, 1368302000, 1400836000, 1433369000,
     1465998000, 1498531000, 1531159000, 1563693000,
@@ -551,7 +544,7 @@ pub struct Initializer<'info> {
         bump
     )]
     pub presale: Box<Account<'info, PresaleInfo>>,
-    
+
     #[account(
         init_if_needed,
         payer = signer,
@@ -565,7 +558,6 @@ pub struct Initializer<'info> {
     )]
     pub staking: Box<Account<'info, StakingInfo>>,
 
-   
     #[account(
         init_if_needed,
         payer = signer,
@@ -616,7 +608,6 @@ pub struct Invest<'info> {
     )]
     pub data: Box<Account<'info, InvestmentData>>,
 
- 
     #[account(
         mut,
         seeds = [PRESALE_SEED],
@@ -639,7 +630,8 @@ pub struct Invest<'info> {
 
     // Investor's USDC Token Account
     #[account(
-        mut,
+          init_if_needed,
+        payer = signer,
         associated_token::mint = usdc_mint,
         associated_token::authority = signer
     )]
@@ -665,8 +657,6 @@ pub struct Invest<'info> {
         associated_token::authority = signer,
     )]
     pub signer_token_account: Box<Account<'info, TokenAccount>>,
-
-  
 
     #[account(mut)]
     pub token_mint: Box<Account<'info, Mint>>,
@@ -706,7 +696,6 @@ pub struct BuyAndStake<'info> {
     )]
     pub staking_data: Box<Account<'info, StakingData>>,
 
-    
     #[account(
         mut,
         seeds = [PRESALE_SEED],
@@ -720,8 +709,7 @@ pub struct BuyAndStake<'info> {
         bump
     )]
     pub staking: Box<Account<'info, StakingInfo>>,
-   
-    
+
     #[account(mut)]
     pub from: Signer<'info>,
     #[account(mut)]
@@ -729,7 +717,7 @@ pub struct BuyAndStake<'info> {
 
     #[account(mut)]
     pub token_mint: Box<Account<'info, Mint>>,
-    
+
     #[account(
         mut,
         associated_token::mint = token_mint,
@@ -743,8 +731,6 @@ pub struct BuyAndStake<'info> {
         associated_token::authority = staking
     )]
     pub staking_token_account: Box<Account<'info, TokenAccount>>,
-
-
 
     #[account(
         init_if_needed,
@@ -904,16 +890,13 @@ pub struct AdminWithdrawUsdcSol<'info> {
         associated_token::authority = signer
     )]
     pub signer_usdc_account: Box<Account<'info, TokenAccount>>,
-  
-    
+
     #[account(mut)]
     pub usdc_mint: Box<Account<'info, Mint>>,
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
-
 }
-
 
 #[derive(Accounts)]
 pub struct AdminWithdrawTokens<'info> {
@@ -935,7 +918,6 @@ pub struct AdminWithdrawTokens<'info> {
     )]
     pub presale_token_account: Box<Account<'info, TokenAccount>>,
 
-  
     #[account(
         mut,
         seeds = [PRESALE_SEED],
@@ -956,8 +938,6 @@ pub struct AdminWithdrawTokens<'info> {
         bump
     )]
     pub staking: Box<Account<'info, StakingInfo>>,
-
-   
 
     #[account(mut)]
     pub token_mint: Box<Account<'info, Mint>>,
@@ -980,8 +960,6 @@ pub struct UnlockStaking<'info> {
         bump
     )]
     pub staking: Box<Account<'info, StakingInfo>>,
-
-  
 }
 
 #[derive(Accounts)]
@@ -1003,8 +981,6 @@ pub struct UpdateTokenAddress<'info> {
         bump
     )]
     pub presale: Box<Account<'info, PresaleInfo>>,
-
-   
 }
 
 #[derive(Accounts)]
@@ -1020,8 +996,6 @@ pub struct StopPresale<'info> {
         bump
     )]
     pub presale: Box<Account<'info, PresaleInfo>>,
-
-  
 }
 
 ////////////////////////////////////////////////////////////
