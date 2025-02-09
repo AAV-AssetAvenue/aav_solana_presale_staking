@@ -1,32 +1,31 @@
 use anchor_lang::prelude::*;
 
 use anchor_spl::{
-    metadata::{
-        create_metadata_accounts_v3,update_metadata_accounts_v2, mpl_token_metadata::types::DataV2,UpdateMetadataAccountsV2, CreateMetadataAccountsV3,
-    },
-    token::{MintTo, Burn,Transfer, Approve, SetAuthority},
-};
-use anchor_spl::{
     associated_token::AssociatedToken,
     metadata::Metadata,
     token::{Mint, Token, TokenAccount},
 };
+use anchor_spl::{
+    metadata::{
+        create_metadata_accounts_v3, mpl_token_metadata::types::DataV2,
+        update_metadata_accounts_v2, CreateMetadataAccountsV3, UpdateMetadataAccountsV2,
+    },
+    token::{Approve, Burn, MintTo, SetAuthority, Transfer},
+};
 
 declare_id!("7bjWGkAyy4pRGZtSqhJDJVdYtf3oNnWXKUfmo89o8VGr");
 pub const MAX_CAP: u64 = 100_000_000_000_000_000; // 6 decimals
-pub const MIN_SEED:&[u8] = "token-mint".as_bytes(); // mint seeds for PDA
-
+pub const MIN_SEED: &[u8] = "token-mint".as_bytes(); // mint seeds for PDA
 
 #[program]
 pub mod solana_spl {
 
     use super::*;
- 
+
     pub fn init_token(ctx: Context<InitToken>, metadata: InitTokenParams) -> Result<()> {
         // PDA seeds and bump to "sign" for CPI
         let seeds = &[MIN_SEED, &[ctx.bumps.mint]];
         let signer = [&seeds[..]];
-
 
         // On-chain token metadata for the mint
         let token_data = DataV2 {
@@ -56,17 +55,19 @@ pub mod solana_spl {
 
         create_metadata_accounts_v3(
             metadata_ctx, // cpi context
-            token_data,// token metadata
-            true,  // is_mutable
-            true, // update_authority_is_signer
-            None // collection details
+            token_data,   // token metadata
+            true,         // is_mutable
+            true,         // update_authority_is_signer
+            None,         // collection details
         )?;
 
         Ok(())
     }
 
-    pub fn update_metadata(ctx: Context<UpdateMetadata>, new_metadata: InitTokenParams) -> Result<()> {
-
+    pub fn update_metadata(
+        ctx: Context<UpdateMetadata>,
+        new_metadata: InitTokenParams,
+    ) -> Result<()> {
         let new_data = DataV2 {
             name: new_metadata.name,
             symbol: new_metadata.symbol,
@@ -82,23 +83,21 @@ pub mod solana_spl {
             UpdateMetadataAccountsV2 {
                 update_authority: ctx.accounts.payer.to_account_info(),
                 metadata: ctx.accounts.metadata.to_account_info(),
-            }
+            },
         );
 
         update_metadata_accounts_v2(
-            metadata_ctx,  // CPI context
-            None,          // New update authority, if any
+            metadata_ctx,   // CPI context
+            None,           // New update authority, if any
             Some(new_data), // Updated data
-            None,          // Primary sale happened
-            None           // Is mutable
+            None,           // Primary sale happened
+            None,           // Is mutable
         )?;
 
         Ok(())
-
     }
 
     pub fn mint_tokens(ctx: Context<MintTokens>, amount: u64) -> Result<()> {
-
         // require!(ctx.accounts.mint.supply + amount <= MAX_CAP, CustomError::CapExceed);
 
         // PDA seeds and bump to "sign" for CPI
@@ -123,7 +122,6 @@ pub mod solana_spl {
     }
 
     pub fn transfer(ctx: Context<TransferToken>, amount: u64) -> Result<()> {
-
         anchor_spl::token::transfer(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
@@ -145,22 +143,14 @@ pub mod solana_spl {
                 Approve {
                     to: ctx.accounts.from_ata.to_account_info(),
                     authority: ctx.accounts.from.to_account_info(),
-                    delegate: ctx.accounts.delegate.to_account_info(),   
+                    delegate: ctx.accounts.delegate.to_account_info(),
                 },
             ),
             amount,
         )?;
         Ok(())
     }
-
- 
 }
-
-
-
-
-
-
 
 #[derive(AnchorSerialize, AnchorDeserialize, Debug, Clone)]
 pub struct InitTokenParams {
@@ -179,7 +169,7 @@ pub struct InitToken<'info> {
     #[account(mut)]
     pub metadata: UncheckedAccount<'info>,
 
-    // create mint account PDA  
+    // create mint account PDA
     #[account(
         init,
         seeds = [MIN_SEED],
@@ -208,7 +198,6 @@ pub struct MintTokens<'info> {
     )]
     pub mint: Account<'info, Mint>,
 
-
     // create destination ATA if it doesn't exist
     #[account(
         init_if_needed,
@@ -217,7 +206,7 @@ pub struct MintTokens<'info> {
         associated_token::authority = payer,
     )]
     pub destination: Account<'info, TokenAccount>,
-    
+
     #[account(mut)]
     pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -229,8 +218,8 @@ pub struct MintTokens<'info> {
 pub struct TransferToken<'info> {
     #[account(mut)]
     pub from: Signer<'info>,
-     /// CHECK:
-    pub to:  UncheckedAccount<'info>, 
+    /// CHECK:
+    pub to: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub mint: Account<'info, Mint>,
@@ -238,7 +227,7 @@ pub struct TransferToken<'info> {
     #[account(mut)]
     pub from_ata: Account<'info, TokenAccount>,
 
-    // create recipient ATA if it doesn't exist and the fee payer is "from" 
+    // create recipient ATA if it doesn't exist and the fee payer is "from"
     #[account(
         init_if_needed,
         payer = from,
@@ -246,29 +235,24 @@ pub struct TransferToken<'info> {
         associated_token::authority = to,
     )]
     pub to_ata: Account<'info, TokenAccount>,
- 
+
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
-
-
-
 #[derive(Accounts)]
 pub struct ApproveToken<'info> {
-
     #[account(mut)]
     pub from_ata: Account<'info, TokenAccount>,
 
     pub from: Signer<'info>,
-  
+
     /// CHECK: This is an unchecked account because the delegate doesn't need to be of any specific type.
-    pub delegate: UncheckedAccount<'info>,  
- 
+    pub delegate: UncheckedAccount<'info>,
+
     pub token_program: Program<'info, Token>,
 }
-
 
 #[derive(Accounts)]
 pub struct BurnTokens<'info> {
@@ -282,7 +266,6 @@ pub struct BurnTokens<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-
 #[derive(Accounts)]
 pub struct ChangeMintAuthority<'info> {
     #[account(mut)]
@@ -294,23 +277,22 @@ pub struct ChangeMintAuthority<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
-
 #[derive(Accounts)]
 #[instruction(
     params: InitTokenParams
 )]
 pub struct UpdateMetadata<'info> {
-  /// CHECK: New Metaplex Account being created
-  #[account(mut)]
-  pub metadata: UncheckedAccount<'info>,
-  #[account(mut)]
-  pub mint: Account<'info, Mint>,
-  
-  #[account(mut)]
-  pub payer: Signer<'info>,
-  pub system_program: Program<'info, System>,
-  pub token_program: Program<'info, Token>,
-  pub token_metadata_program: Program<'info, Metadata>,
+    /// CHECK: New Metaplex Account being created
+    #[account(mut)]
+    pub metadata: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub mint: Account<'info, Mint>,
+
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
+    pub token_metadata_program: Program<'info, Metadata>,
 }
 #[error_code]
 pub enum CustomError {
