@@ -772,7 +772,7 @@ pub struct Stake<'info> {
         Discriminator: 8 bytes
         InvestmentData : size of InvestmentData
          */
-        space = 8 +  (10 * std::mem::size_of::<StakingData>()),  
+        space = 8 +  std::mem::size_of::<StakingData>(),  
         payer=from,
         seeds=[STAKING_DATA_SEED,from.key().as_ref()],
         bump
