@@ -5,7 +5,7 @@ use anchor_spl::{
 };
 use std::str::FromStr;
 
-declare_id!("3nnfTx68bKCRXZdZfKoFFfryWbnR3asFGmfLsXNPtXxK");
+declare_id!("G7n94bhEkqKwBkgqVALJ2AzPrugaca5XH2pWw3xy88xB");
 
 #[program]
 pub mod solana_presale {
@@ -381,13 +381,6 @@ pub mod solana_presale {
         presale.is_live = toggle;
         Ok(())
     }
-    // update presale token mint address
-    pub fn update_token_address(ctx: Context<UpdateTokenAddress>) -> Result<()> {
-        let presale = &mut ctx.accounts.presale;
-        presale.token_mint = ctx.accounts.token_mint.key();
-
-        Ok(())
-    }
 
     // emergency function for admin to withdraw tokens from staking. should be used in emergency scenario.
     pub fn admin_withdraw_tokens(ctx: Context<AdminWithdrawTokens>) -> Result<()> {
@@ -578,7 +571,8 @@ pub struct Initializer<'info> {
     pub token_mint: Box<Account<'info, Mint>>, // Token mint account
     // Presale's USDC Token Account
     #[account(
-        mut,
+        init_if_needed,
+        payer = signer,
         associated_token::mint = usdc_mint,
         associated_token::authority = presale
     )]
@@ -630,7 +624,7 @@ pub struct Invest<'info> {
 
     // Investor's USDC Token Account
     #[account(
-          init_if_needed,
+        init_if_needed,
         payer = signer,
         associated_token::mint = usdc_mint,
         associated_token::authority = signer
@@ -638,8 +632,8 @@ pub struct Invest<'info> {
     pub signer_usdc_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
-        mut
-        // constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidToken)? @ CustomError::InvalidToken
+        mut,
+        constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidUSDC)? @ CustomError::InvalidUSDC
     )]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
@@ -741,7 +735,7 @@ pub struct BuyAndStake<'info> {
     pub signer_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
-        // constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidToken)? @ CustomError::InvalidToken
+        constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidUSDC)? @ CustomError::InvalidUSDC
     )]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
@@ -753,7 +747,8 @@ pub struct BuyAndStake<'info> {
     pub presale_usdc_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
-        mut,
+        init_if_needed,
+        payer = signer,
         associated_token::mint = usdc_mint,
         associated_token::authority = signer
     )]
@@ -885,7 +880,8 @@ pub struct AdminWithdrawUsdcSol<'info> {
 
     // Admin's USDC Token Account (where USDC is sent)
     #[account(
-        mut,
+        init_if_needed,
+        payer = signer,
         associated_token::mint = usdc_mint,
         associated_token::authority = signer
     )]
@@ -963,27 +959,6 @@ pub struct UnlockStaking<'info> {
 }
 
 #[derive(Accounts)]
-pub struct UpdateTokenAddress<'info> {
-    #[account(
-        mut,
-        constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
-    )]
-    pub signer: Signer<'info>,
-    #[account(
-
-        constraint = token_mint.is_initialized == true,
-    )]
-    pub token_mint: Box<Account<'info, Mint>>, // Token mint account
-
-    #[account(
-        mut,
-        seeds = [PRESALE_SEED],
-        bump
-    )]
-    pub presale: Box<Account<'info, PresaleInfo>>,
-}
-
-#[derive(Accounts)]
 pub struct StopPresale<'info> {
     #[account(
         mut,
@@ -1017,14 +992,12 @@ pub enum CustomError {
     WrongTime,
     #[msg("WrongAmount")]
     WrongAmount,
-    #[msg("Invalid Token")]
-    InvalidToken, //  wrong USDC mint
+    #[msg("Invalid USDC")]
+    InvalidUSDC, //  wrong USDC mint
     #[msg("Overflow error in reward calculation")]
     Overflow,
     #[msg("Zero staking amount")]
     ZeroAmount,
-    #[msg("Staking not live")]
-    StakingNotLive,
     #[msg("ClaimLocked")]
     ClaimLocked,
     #[msg("NoRewards")]
