@@ -184,26 +184,37 @@ pub enum CustomError {
 
 ## Staking Logic
 ```shell
+Staking logic:
+A total 5.000.000 AAV tokens as rewards will be distributed in linear curve over 12 months. Rewards will be calculated and distributed daily based on each user’s share of the staking pool.
+
+This means every day at 12pm CET (or any time you decide) there will be a snapshot. The snapshot will check:
+Number of Users, Users Share and Users Rewards:
+ 
 User share= User staked tokens / total staked tokens
 User Rewards=User share x Daily Reward
 
 The linear growth curve is like this:
 Linear Growth Curve:
 
-Month	Daily Rewards (tokens)	Monthly Total (tokens)
-Month 1	- 12,671 tokens/day	380,125 tokens
-Month 2	-  13,014 tokens/day	390,375 tokens
-Month 3	- 13,356 tokens/day	400,750 tokens
-Month 4	- 13,699 tokens/day	411,000 tokens
-Month 5	- 14,041 tokens/day	421,250 tokens
-Month 6	- 14,384 tokens/day	431,500 tokens
-Month 7	- 14,726 tokens/day	441,775 tokens
-Month 8	- 15,068 tokens/day	452,125 tokens
-Month 9	- 15,411 tokens/day 462,375 tokens
-Month 10 - 15,753 tokens/day 472,375 tokens
-Month 11	- 16,096 tokens/day	482,875 tokens
-Month 12	- 16,438 tokens/day	493,125 tokens
+
+Month       Daily Rewards (AAV) Monthly Total (AAV) 
+Month 1     12,053.50       361,605.00
+Month 2     12,379.79       371,393.70 
+Month 3     12,705.12       381,153.60 
+Month 4     13,031.41       390,942.30 
+Month 5     13,356.74       400,702.20 
+Month 6     13,683.02       410,490.60 
+Month 7     14,008.36       420,250.80 
+Month 8     14,333.69       430,010.70 
+Month 9     14,659.98       439,799.40 
+Month 10    14,985.31       449,559.30 
+Month 11    15,311.59       459,347.70 
+Month 12    15,636.93       484,744.83
+
+
+
 This ads up to 5.000.000 AAV
+
 ```
 
 
