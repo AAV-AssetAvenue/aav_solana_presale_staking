@@ -381,7 +381,7 @@ pub mod solana_presale {
         presale.is_live = toggle;
         Ok(())
     }
-  
+
     // emergency function for admin to withdraw tokens from staking. should be used in emergency scenario.
     pub fn admin_withdraw_tokens(ctx: Context<AdminWithdrawTokens>) -> Result<()> {
         transfer(
@@ -571,7 +571,8 @@ pub struct Initializer<'info> {
     pub token_mint: Box<Account<'info, Mint>>, // Token mint account
     // Presale's USDC Token Account
     #[account(
-        mut,
+        init_if_needed,
+        payer = signer,
         associated_token::mint = usdc_mint,
         associated_token::authority = presale
     )]
@@ -631,8 +632,8 @@ pub struct Invest<'info> {
     pub signer_usdc_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
-        mut
-        // constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidUSDC)? @ CustomError::InvalidUSDC
+        mut,
+        constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidUSDC)? @ CustomError::InvalidUSDC
     )]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
@@ -734,7 +735,7 @@ pub struct BuyAndStake<'info> {
     pub signer_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
-        // constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidUSDC)? @ CustomError::InvalidUSDC
+        constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidUSDC)? @ CustomError::InvalidUSDC
     )]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
@@ -746,7 +747,8 @@ pub struct BuyAndStake<'info> {
     pub presale_usdc_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
-        mut,
+        init_if_needed,
+        payer = signer,
         associated_token::mint = usdc_mint,
         associated_token::authority = signer
     )]
@@ -878,7 +880,8 @@ pub struct AdminWithdrawUsdcSol<'info> {
 
     // Admin's USDC Token Account (where USDC is sent)
     #[account(
-        mut,
+        init_if_needed,
+        payer = signer,
         associated_token::mint = usdc_mint,
         associated_token::authority = signer
     )]
@@ -954,8 +957,6 @@ pub struct UnlockStaking<'info> {
     )]
     pub staking: Box<Account<'info, StakingInfo>>,
 }
-
-
 
 #[derive(Accounts)]
 pub struct StopPresale<'info> {
