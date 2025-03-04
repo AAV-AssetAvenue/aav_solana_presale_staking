@@ -3,21 +3,12 @@
 resolution = true
 skip-lint = false
 
-[programs.localnet]
-solana_presale = "G7n94bhEkqKwBkgqVALJ2AzPrugaca5XH2pWw3xy88xB"
-solana_spl = "7bjWGkAyy4pRGZtSqhJDJVdYtf3oNnWXKUfmo89o8VGr"
+[programs.mainnet]
+solana_presale = "8BBRV7FzKbi923SVZm3udHB1VTDQwwNnbHyyB114WG5A"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Localnet"
+cluster = "Mainnet"
 wallet = "~/.config/solana/id.json"
-
-[scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
-
-[[test.genesis]]
-address = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"  
-program = "tests/metaplex_token_metadata_program.so"
-

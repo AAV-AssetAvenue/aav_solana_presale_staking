@@ -5,7 +5,7 @@ use anchor_spl::{
 };
 use std::str::FromStr;
 
-declare_id!("G7n94bhEkqKwBkgqVALJ2AzPrugaca5XH2pWw3xy88xB");
+declare_id!("8BBRV7FzKbi923SVZm3udHB1VTDQwwNnbHyyB114WG5A");
 
 #[program]
 pub mod solana_presale {
@@ -462,7 +462,7 @@ pub const PRESALE_SEED: &[u8] = "solana_presale".as_bytes();
 pub const DATA_SEED: &[u8] = "my_data".as_bytes();
 pub const STAKING_SEED: &[u8] = "solana_staking".as_bytes();
 pub const STAKING_DATA_SEED: &[u8] = "staking_user_data".as_bytes();
-pub const USDC_ADDRESS: &str = "4Fa3EWgea8bYwFjRdAxn9b7FhzFSYZR41Tnkn39SvSLX";
+pub const USDC_ADDRESS: &str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 pub const DAILY_REWARDS: [u64; 12] = [
     1205350000, 1237979000, 1270512000, 1303141000, 1335674000, 1368302000, 1400836000, 1433369000,
     1465998000, 1498531000, 1531159000, 1563693000,
@@ -571,8 +571,7 @@ pub struct Initializer<'info> {
     pub token_mint: Box<Account<'info, Mint>>, // Token mint account
     // Presale's USDC Token Account
     #[account(
-        init_if_needed,
-        payer = signer,
+        mut,
         associated_token::mint = usdc_mint,
         associated_token::authority = presale
     )]

@@ -108,22 +108,6 @@ let totalTokenStaked = 0;
     await airdropSol(account2.publicKey, 20*1e9); // 3 SOL
     
   })
-it("init token",async()=>{
-  const context = {
-    metadata: metadataAddress,
-    mint,
-    payer:account1,
-    rent: anchor.web3.SYSVAR_RENT_PUBKEY,
-    systemProgram: anchor.web3.SystemProgram.programId,
-    tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-    tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
-  };
-
-  await token.methods
-    .initToken(metadata)
-    .accounts(context)
-    .rpc();
-})
 
 
 
