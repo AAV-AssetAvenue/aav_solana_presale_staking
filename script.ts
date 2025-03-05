@@ -15,11 +15,11 @@ import { SolanaPresale } from "./target/types/solana_presale";
 
 
 // Replace with your mainnet RPC URL
-const RPC_URL = "https://solana-mainnet.g.alchemy.com/v2/JW__6GZOnEF9v1EVGaTwnD7SgOmhlyCP"
+const RPC_URL = "https://api.mainnet-beta.solana.com";
 
 // Retrieve your plain private key from an environment variable.
 // The PRIVATE_KEY should be a string (for example, a base58-encoded key)
-const privateKeyString = "2shdnJLyJ9oJiZLGd48YoEtvt3LYagZmgedc1nv5RPV2QFFkNcze1pp1KLJ2pD5W261XsNRQiih2scXYSnAesmdB";
+const privateKeyString =process.env.PRIVATE_KEY
 if (!privateKeyString) {
     throw new Error("PRIVATE_KEY environment variable is not set.");
 }
