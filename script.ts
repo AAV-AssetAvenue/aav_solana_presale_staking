@@ -1,21 +1,18 @@
-import { AnchorProvider, Program, Wallet } from "@coral-xyz/anchor";
+import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
 import {
     Connection,
     Keypair,
-    LAMPORTS_PER_SOL,
-    PublicKey,
     Transaction,
 } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 import idl from "./target/idl/solana_presale.json";
 import bs58 from "bs58";
-import { SYSTEM_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/native/system";
 import { BN } from "bn.js";
 import { SolanaPresale } from "./target/types/solana_presale";
 
 
 // Replace with your mainnet RPC URL
-const RPC_URL = "https://api.mainnet-beta.solana.com";
+const RPC_URL = "https://api.devnet.solana.com";
 
 // Retrieve your plain private key from an environment variable.
 // The PRIVATE_KEY should be a string (for example, a base58-encoded key)

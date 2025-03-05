@@ -382,6 +382,13 @@ pub mod solana_presale {
         Ok(())
     }
 
+    pub fn update_presale_authority(ctx: Context<StopPresale>, authority:Pubkey) -> Result<()> {
+        let presale = &mut ctx.accounts.presale;
+
+        presale.authority = authority;
+        Ok(())
+    }
+
     // emergency function for admin to withdraw tokens from staking. should be used in emergency scenario.
     pub fn admin_withdraw_tokens(ctx: Context<AdminWithdrawTokens>) -> Result<()> {
         transfer(
