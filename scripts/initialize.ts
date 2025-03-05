@@ -9,21 +9,21 @@ import idl from "../target/idl/solana_presale.json";
 import bs58 from "bs58";
 import { BN } from "bn.js";
 import { SolanaPresale } from "../target/types/solana_presale";
-
+import fs from "fs"
 
 // Replace with your mainnet RPC URL
 const RPC_URL = "https://api.devnet.solana.com";
 
 // Retrieve your plain private key from an environment variable.
 // The PRIVATE_KEY should be a string (for example, a base58-encoded key)
-const privateKeyString =process.env.PRIVATE_KEY
-if (!privateKeyString) {
-    throw new Error("PRIVATE_KEY environment variable is not set.");
-}
+const privateKeyArray = JSON.parse(fs.readFileSync("/Users/asad97/.config/solana/id.json", 'utf8'));
+// Convert to Uint8Array
+const privateKeyUint8Array = new Uint8Array(privateKeyArray);
 
-// Decode the base58 encoded private key string into a Uint8Array
-const privateKey = bs58.decode(privateKeyString);
-const keypair = Keypair.fromSecretKey(privateKey);
+// Generate Keypair
+const keypair = Keypair.fromSecretKey(privateKeyUint8Array);
+
+console.log("Public Key:", keypair.publicKey.toBase58());
 
 async function main() {
     // Create a connection to the mainnet
