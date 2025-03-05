@@ -5,7 +5,7 @@ use anchor_spl::{
 };
 use std::str::FromStr;
 
-declare_id!("abKv7EDBx3REPsbgpZVfyn39RH3kBsYUKQy18AfdHf9");
+declare_id!("a8iugBmjgGnthWf1C5GJUUJcwFse8T3S7pSzpW3T98u");
 
 #[program]
 pub mod solana_presale {
@@ -53,7 +53,8 @@ pub mod solana_presale {
     // function for users to invest in presale using sol and get tokens in return.
     // there is no vesting
     // min investment is 0.5 sol and max investment is 200 sol
-    pub fn invest(ctx: Context<Invest>, value: u64, payment_token: u8) -> Result<()> {
+    pub fn invest_usdc(ctx: Context<InvestUsdc>, value: u64) -> Result<()> {
+      
         let presale_data = &mut ctx.accounts.presale;
         let user_data = &mut ctx.accounts.data;
 
@@ -66,36 +67,80 @@ pub mod solana_presale {
             CustomError::PresaleNotStarted
         );
 
-        let number_of_tokens = if payment_token == 0 {
-            // SOL Payment
-            require!(
-                value >= 500000000 && value <= 200000000000,
-                CustomError::WrongAmount
-            );
-            value * 100000 / presale_data.price_per_token_in_sol
-        } else {
+          
             // USDC Payment
             require!(
                 value >= 100_000000 && value <= 40_000_000000,
                 CustomError::WrongAmount
             );
-            value * 100000 / presale_data.price_per_token_in_usdc
-        };
+            let number_of_tokens =  value * 100000 / presale_data.price_per_token_in_usdc;
 
-        if payment_token == 0 {
-            user_data.sol_investment_amount += value;
-            presale_data.sol_amount_raised += value;
-        } else {
             user_data.usdc_investment_amount += value;
             presale_data.usdc_amount_raised += value;
-        }
+
+        user_data.number_of_tokens += number_of_tokens;
+        presale_data.total_tokens_sold += number_of_tokens;
+            msg!("value{}",value);
+
+            // Transfer USDC from investor to presale account
+            transfer(
+                CpiContext::new(
+                    ctx.accounts.token_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.signer_usdc_account.to_account_info(),
+                        to: ctx.accounts.presale_usdc_account.to_account_info(),
+                        authority: ctx.accounts.signer.to_account_info(),
+                    },
+                ),
+                value,
+            )?;
+        // Transfer Presale Tokens to Investor
+        transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.presale_token_account.to_account_info(),
+                    to: ctx.accounts.signer_token_account.to_account_info(),
+                    authority: ctx.accounts.presale.to_account_info(),
+                },
+                &[&[PRESALE_SEED, &[ctx.bumps.presale]][..]],
+            ),
+            number_of_tokens,
+        )?;
+        Ok(())
+    }
+
+
+    pub fn invest_sol(ctx: Context<InvestSol>, value: u64) -> Result<()> {
+      msg!("Investing in sol {}", value);
+      
+        let presale_data = &mut ctx.accounts.presale;
+        let user_data = &mut ctx.accounts.data;
+
+        require!(presale_data.is_live, CustomError::PresaleNotLive);
+
+        let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
+
+        require!(
+            cur_timestamp >= presale_data.start_time,
+            CustomError::PresaleNotStarted
+        );
+
+            // SOL Payment
+            require!(
+                value >= 500000000 && value <= 200000000000,
+                CustomError::WrongAmount
+            );
+            let number_of_tokens = value * PRECISION / presale_data.price_per_token_in_sol;
+
+            user_data.sol_investment_amount += value;
+            presale_data.sol_amount_raised += value;
         user_data.number_of_tokens += number_of_tokens;
         presale_data.total_tokens_sold += number_of_tokens;
 
         let from_account = &ctx.accounts.from;
         let presale = presale_data.to_account_info();
 
-        if payment_token == 0 {
             // Transfer Sol from investor to presale account
             let transfer_instruction =
                 solana_program::system_instruction::transfer(from_account.key, presale.key, value);
@@ -109,20 +154,6 @@ pub mod solana_presale {
                     ctx.accounts.system_program.to_account_info(),
                 ],
             )?;
-        } else {
-            // Transfer USDC from investor to presale account
-            transfer(
-                CpiContext::new(
-                    ctx.accounts.token_program.to_account_info(),
-                    Transfer {
-                        from: ctx.accounts.signer_usdc_account.to_account_info(),
-                        to: ctx.accounts.presale_usdc_account.to_account_info(),
-                        authority: ctx.accounts.signer.to_account_info(),
-                    },
-                ),
-                value,
-            )?;
-        }
         // Transfer Presale Tokens to Investor
         transfer(
             CpiContext::new_with_signer(
@@ -140,6 +171,7 @@ pub mod solana_presale {
     }
 
     pub fn buy_and_stake(ctx: Context<BuyAndStake>, value: u64, payment_token: u8) -> Result<()> {
+      
         let presale_data = &mut ctx.accounts.presale;
         let staking_data = &mut ctx.accounts.staking;
         let user_staking_data = &mut ctx.accounts.staking_data;
@@ -586,7 +618,7 @@ pub struct Initializer<'info> {
 }
 
 #[derive(Accounts)]
-pub struct Invest<'info> {
+pub struct InvestUsdc<'info> {
     #[account(
         init_if_needed,
         /*
@@ -615,7 +647,8 @@ pub struct Invest<'info> {
 
     // Presale's USDC Token Account
     #[account(
-        mut,
+         init_if_needed,
+        payer=from,
         associated_token::mint = usdc_mint,
         associated_token::authority = presale
     )]
@@ -635,6 +668,62 @@ pub struct Invest<'info> {
         // constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidUSDC)? @ CustomError::InvalidUSDC
     )]
     pub usdc_mint: Box<Account<'info, Mint>>,
+
+    #[account(
+        mut,
+        associated_token::mint = token_mint,
+        associated_token::authority = presale
+    )]
+    pub presale_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        init_if_needed,
+        payer = signer,
+        associated_token::mint = token_mint,
+        associated_token::authority = signer,
+    )]
+    pub signer_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(mut)]
+    pub token_mint: Box<Account<'info, Mint>>,
+
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+}
+
+
+
+#[derive(Accounts)]
+pub struct InvestSol<'info> {
+    #[account(
+        init_if_needed,
+        /*
+        Discriminator: 8 bytes
+        InvestmentData : size of InvestmentData
+         */
+        space=8 + std::mem::size_of::<InvestmentData>(),
+        payer=from,
+        seeds=[DATA_SEED,from.key().as_ref()],
+        bump
+
+    )]
+    pub data: Box<Account<'info, InvestmentData>>,
+
+    #[account(
+        mut,
+        seeds = [PRESALE_SEED],
+        bump
+    )]
+    pub presale: Box<Account<'info, PresaleInfo>>,
+
+    #[account(mut)]
+    pub from: Signer<'info>,
+    #[account(mut)]
+    pub signer: Signer<'info>,
+
+   
+
 
     #[account(
         mut,
