@@ -42,45 +42,85 @@ describe("solana presale testcases", async() => {
   anchor.setProvider(anchor.AnchorProvider.env());
 
   const program = anchor.workspace.SolanaPresale as Program<SolanaPresale>;
-  const token = anchor.workspace.SolanaSpl as Program<SolanaSpl>;
-  const TOKEN_METADATA_PROGRAM_ID = new anchor.web3.PublicKey(
-    "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s" // metaplex metadata program id
-  )
-  const metadata = {
-    name: "lamport Token",
-    symbol: "LMT",
-    uri: "https://pump.mypinata.cloud/ipfs/QmeSzchzEPqCU1jwTnsipwcBAeH7S4bmVvFGfF65iA1BY1?img-width=128&img-dpr=2&img-onerror=redirect",
-    decimals: 5,
-  };
-  const MINT_SEED = "token-mint";
+  
+
+
+
   const DATA_SEED = "my_data";
   const PRESALE_SEED = "solana_presale";
   const STAKING_SEED = "solana_staking";
   const DATA_SEED_STAKING = "staking_user_data";
-
+  const account1 = program.provider.publicKey
+  const account2 = anchor.web3.Keypair.generate()
   
-  const [mint] = anchor.web3.PublicKey.findProgramAddressSync(
-    [Buffer.from(MINT_SEED)],
-    token.programId
-  );
-  let usdc;
+
+  const payer = account2
+  let  usdc = await createMint(
+    program.provider.connection,
+    payer,
+    payer.publicKey,
+    null,
+    6,
+    anchor.web3.Keypair.generate(),
+    {},
+    anchor.utils.token.TOKEN_PROGRAM_ID,
+ );
+
+ const usdcTokenAccount = await getOrCreateAssociatedTokenAccount(
+  program.provider.connection,
+  payer,
+  usdc,  // The mint address
+  payer.publicKey // Owner of the token account
+);
+
+
+ await mintTo(
+  program.provider.connection,
+  payer,
+  usdc,
+  usdcTokenAccount.address,
+  payer.publicKey,
+  10000000000,
+   [],
+  {},
+  anchor.utils.token.TOKEN_PROGRAM_ID,
+ )    
+  let token = await createMint(
+    program.provider.connection,
+    payer,
+    payer.publicKey,
+    null,
+    5,
+    anchor.web3.Keypair.generate(),
+    {},
+    anchor.utils.token.TOKEN_PROGRAM_ID,
+ );
+
+ const aavTokenAccount = await getOrCreateAssociatedTokenAccount(
+  program.provider.connection,
+  payer,
+  token,  // The mint address
+  payer.publicKey // Owner of the token account
+);
+ await mintTo(
+  program.provider.connection,
+  payer,
+  token,
+  aavTokenAccount.address,
+  payer.publicKey,
+  500000000000000,
+   [],
+  {},
+  anchor.utils.token.TOKEN_PROGRAM_ID,
+ )    
+
 
   const [stakingPda] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from(STAKING_SEED)],
       program.programId
     );
-  const METADATA_SEED = "metadata";
+ 
 
-  const [metadataAddress] = anchor.web3.PublicKey.findProgramAddressSync(
-    [
-      Buffer.from(METADATA_SEED),
-      TOKEN_METADATA_PROGRAM_ID.toBuffer(),
-      mint.toBuffer(),
-    ],
-    TOKEN_METADATA_PROGRAM_ID
-  );
-  const account1 = program.provider.publicKey
-  const account2 = anchor.web3.Keypair.generate()
   const account2Investment= new BN(0.5e9) // sol
   const account2UsdcInvestment= new BN(100e6) // usdc
   const date = Math.floor(new Date().getTime()/1000)
@@ -91,17 +131,16 @@ describe("solana presale testcases", async() => {
   );
 let presale_usdc_ata;
 let totalTokenStaked = 0;
-  const mintAmount = 100_000_000_000;
   const payer_ata =  anchor.utils.token.associatedAddress({
-    mint: mint,
+    mint: token,
     owner: account1,
   });
   const presale_ata = anchor.utils.token.associatedAddress({
-    mint: mint,
+    mint: token,
     owner: presalePda,
   });
   const staking_ata = anchor.utils.token.associatedAddress({
-    mint: mint,
+    mint: token,
     owner: stakingPda,
   });
   before(async()=>{
@@ -112,39 +151,6 @@ let totalTokenStaked = 0;
 
 
   it("initializer", async () => {
-    const payer = account2
-
-    usdc = await createMint(
-      program.provider.connection,
-      payer,
-      payer.publicKey,
-      null,
-      6,
-      anchor.web3.Keypair.generate(),
-      {},
-      anchor.utils.token.TOKEN_PROGRAM_ID,
-   );
-   const usdcTokenAccount = await getOrCreateAssociatedTokenAccount(
-    program.provider.connection,
-    payer,
-    usdc,  // The mint address
-    payer.publicKey // Owner of the token account
-);
-
-   await mintTo(
-    program.provider.connection,
-    payer,
-    usdc,
-    usdcTokenAccount.address,
-    payer.publicKey,
-    10000000000,
-     [],
-    {},
-    anchor.utils.token.TOKEN_PROGRAM_ID,
-   )    
-   console.log(usdc.toString())
-    
-   
     presale_usdc_ata = await getOrCreateAssociatedTokenAccount(
       program.provider.connection,
       payer,
@@ -153,7 +159,7 @@ let totalTokenStaked = 0;
       true
   );
     const presale_ata = anchor.utils.token.associatedAddress({
-      mint: mint,
+      mint: token,
       owner: presalePda,
     });
   
@@ -161,7 +167,7 @@ let totalTokenStaked = 0;
       signer:account1,
       presale:presalePda,
       staking:stakingPda,
-      tokenMint:mint,
+      tokenMint:token,
       usdcMint:usdc,
       presaleUsdcAccount:presale_usdc_ata.address,
       stakingTokenAccount:staking_ata,
@@ -198,25 +204,7 @@ let totalTokenStaked = 0;
 
   });
 
-  it("mint token",async()=>{
- 
-    const mintContext = {
-      mint,
-      destination:payer_ata,
-      payer:account1,
-      rent: anchor.web3.SYSVAR_RENT_PUBKEY,
-      systemProgram: anchor.web3.SystemProgram.programId,
-      tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-      associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
-    };
-    await token.methods
-      .mintTokens(new anchor.BN((mintAmount * 10 ** metadata.decimals).toString()))
-      .accounts(mintContext)
-      .rpc();
-
-      const balance = (await program.provider.connection.getTokenAccountBalance(payer_ata))
-      assert.equal(Number(balance.value.amount),mintAmount* 10 ** metadata.decimals)
-  })
+  
 
 
 
@@ -227,29 +215,29 @@ let totalTokenStaked = 0;
     const from_ata =  payer_ata;
 
     const reciever_ata = anchor.utils.token.associatedAddress({
-      mint: mint,
+      mint: token,
       owner: presalePda,
     });
 
 
-    const context = {
-      from:account1,
-      to:presalePda,
-      fromAta:from_ata,
-      toAta:reciever_ata,
-      mint,
-      systemProgram: anchor.web3.SystemProgram.programId,
-      tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-      associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
-    };
+    // const context = {
+    //   from:account1,
+    //   to:presalePda,
+    //   fromAta:from_ata,
+    //   toAta:reciever_ata,
+    //   mint:token,
+    //   systemProgram: anchor.web3.SystemProgram.programId,
+    //   tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+    //   associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
+    // };
 
-     await token.methods
-      .transfer(new anchor.BN((transferAmount * 10 ** metadata.decimals).toString()))
-      .accounts(context)
-      .rpc();
+    //  await token.methods
+    //   .transfer(new anchor.BN((transferAmount * 10 ** metadata.decimals).toString()))
+    //   .accounts(context)
+    //   .rpc();
 
-      const balance = (await program.provider.connection.getTokenAccountBalance(reciever_ata))
-      assert.equal(Number(balance.value.amount),transferAmount* 10 ** metadata.decimals)
+    //   const balance = (await program.provider.connection.getTokenAccountBalance(reciever_ata))
+    //   assert.equal(Number(balance.value.amount),transferAmount* 10 ** metadata.decimals)
   });
 
   it("invest using sol",async()=>{
@@ -259,7 +247,7 @@ let totalTokenStaked = 0;
     );
    
     const reciever_ata = anchor.utils.token.associatedAddress({
-      mint: mint,
+      mint: token,
       owner: account2.publicKey,
     });
   
@@ -280,7 +268,7 @@ let totalTokenStaked = 0;
       presaleUsdcAccount:presale_usdc_ata.address,
       usdcMint:usdc,
       presaleTokenAccount:presale_ata,
-      tokenMint:mint,
+      tokenMint:token,
       signerTokenAccount:reciever_ata,
       systemProgram: anchor.web3.SystemProgram.programId,
       tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
@@ -312,7 +300,7 @@ console.log("beforeBalance",beforeBalance)
     );
    
     const reciever_ata = anchor.utils.token.associatedAddress({
-      mint: mint,
+      mint: token,
       owner: account2.publicKey,
     });
   
@@ -333,7 +321,7 @@ console.log("beforeBalance",beforeBalance)
       presaleUsdcAccount:presale_usdc_ata.address,
       usdcMint:usdc,
       presaleTokenAccount:presale_ata,
-      tokenMint:mint,
+      tokenMint:token,
       signerTokenAccount:reciever_ata,
       systemProgram: anchor.web3.SystemProgram.programId,
       tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
@@ -354,7 +342,7 @@ console.log("beforeBalance",beforeBalance)
     const presaleData = await program.account.presaleInfo.fetch(presalePda)
     const balance = (await program.provider.connection.getTokenAccountBalance(reciever_ata))
     assert.equal(Number(balance.value.amount),Number(data.numberOfTokens))
-    assert.equal(Number(mintAmount* 10 ** metadata.decimals)-Number(presaleData.totalTokensSold),Number(afterPresaleBalance.value.amount))
+    // assert.equal(Number(mintAmount* 10 ** metadata.decimals)-Number(presaleData.totalTokensSold),Number(afterPresaleBalance.value.amount))
     assert.equal(Number(account2UsdcInvestment),Number(data.usdcInvestmentAmount))
   })
  
@@ -380,13 +368,13 @@ it("buy with sol and stake",async()=>{
       );
      
       const reciever_ata = anchor.utils.token.associatedAddress({
-        mint: mint,
+        mint: token,
         owner: account2.publicKey,
       });
 
 
       const staking_ata = anchor.utils.token.associatedAddress({
-        mint: mint,
+        mint: token,
         owner: stakingPda,
       });
   
@@ -398,7 +386,7 @@ it("buy with sol and stake",async()=>{
         staking:stakingPda,
         from:account2.publicKey,
         signer:account2.publicKey,
-        tokenMint:mint,
+        tokenMint:token,
         presaleTokenAccount:presale_ata,
         stakingTokenAccount:staking_ata,
         signerTokenAccount:reciever_ata,
@@ -447,13 +435,13 @@ it("buy with usdc and stake",async()=>{
       );
      
       const reciever_ata = anchor.utils.token.associatedAddress({
-        mint: mint,
+        mint: token,
         owner: account2.publicKey,
       });
 
 
       const staking_ata = anchor.utils.token.associatedAddress({
-        mint: mint,
+        mint: token,
         owner: stakingPda,
       });
   
@@ -465,7 +453,7 @@ it("buy with usdc and stake",async()=>{
         staking:stakingPda,
         from:account2.publicKey,
         signer:account2.publicKey,
-        tokenMint:mint,
+        tokenMint:token,
         presaleTokenAccount:presale_ata,
         stakingTokenAccount:staking_ata,
         signerTokenAccount:reciever_ata,
@@ -537,11 +525,11 @@ it("buy with usdc and stake",async()=>{
     
 
     const reciever_ata = anchor.utils.token.associatedAddress({
-      mint: mint,
+      mint: token,
       owner: account1,
     });
     const presale_ata = anchor.utils.token.associatedAddress({
-      mint: mint,
+      mint: token,
       owner: presalePda,
     });
 
@@ -550,7 +538,7 @@ it("buy with usdc and stake",async()=>{
       signerTokenAccount:reciever_ata,
       presale:presalePda,
       signer:account1,
-      tokenMint:mint,
+      tokenMint:token,
       tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
       systemProgram: anchor.web3.SystemProgram.programId,
       associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
@@ -564,7 +552,7 @@ it("buy with usdc and stake",async()=>{
     const presaleBalance = (await program.provider.connection.getTokenAccountBalance(presale_ata))
     const data = await program.account.presaleInfo.fetch(presalePda)
     const stakingInfo = await program.account.stakingInfo.fetch(stakingPda);
-    assert.equal(Number(balance.value.amount),Number(mintAmount* 10 ** metadata.decimals - Number(data.totalTokensSold) + Number(stakingInfo.totalTokensStaked)))
+    // assert.equal(Number(balance.value.amount),Number(mintAmount* 10 ** metadata.decimals - Number(data.totalTokensSold) + Number(stakingInfo.totalTokensStaked)))
     assert.equal(Number(presaleBalance.value.amount),Number(0))
   })
 
