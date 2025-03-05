@@ -3,7 +3,7 @@ import { Program } from "@coral-xyz/anchor";
 import { SolanaPresale } from "../target/types/solana_presale";
 import { assert } from "chai";
 import { BN } from "bn.js";
-import { createAccount, createAssociatedTokenAccount, createMint, getAccount, getAssociatedTokenAddress, getOrCreateAssociatedTokenAccount, mintTo,transfer } from "@solana/spl-token";
+import { createMint, getOrCreateAssociatedTokenAccount, mintTo,transfer } from "@solana/spl-token";
 
 async function confirmTransaction(tx:string) {
   const latestBlockHash = await anchor.getProvider().connection.getLatestBlockhash();
@@ -32,7 +32,7 @@ type stakingInfo= {
   allowClaiming: boolean;
   authority: anchor.web3.PublicKey;
 }
-const PRECISION = 1_000_000; // Match token decimals
+const PRECISION = 1_000_000; 
 const MONTH_DURATION = (30 * 24 * 60 * 60) * PRECISION;
 const DAY_DURATION = (24 * 60 * 60) * PRECISION;
 const DAILY_REWARDS = [
@@ -114,8 +114,8 @@ describe("solana presale testcases", async() => {
   let totalTokenStaked = 0;
   let presale_ata
 
-  const account2Investment= new BN(0.5e9) // sol
-  const account2UsdcInvestment= new BN(100e6) // usdc
+  const account2Investment= new anchor.BN(0.5e9) // sol
+  const account2UsdcInvestment= new anchor.BN(100e6) // usdc
   const date = Math.floor(new Date().getTime()/1000)
   
   const [presalePda] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -542,6 +542,11 @@ const userUsdcTokenAccount = anchor.utils.token.associatedAddress({
 })
 
 
+
+
+
+
+
   it("withdraw sol",async()=>{
     const newAuthority = account2.publicKey
     const context = {
@@ -626,6 +631,12 @@ const userUsdcTokenAccount = anchor.utils.token.associatedAddress({
     // assert.equal(Number(balance.value.amount),Number(mintAmount* 10 ** metadata.decimals - Number(data.totalTokensSold) + Number(stakingInfo.totalTokensStaked)))
     assert.equal(Number(presaleBalance.value.amount),Number(0))
   })
+
+
+
+
+
+
 
   it("toggle Presale", async () => {
 

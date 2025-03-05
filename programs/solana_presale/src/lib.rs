@@ -72,14 +72,14 @@ pub mod solana_presale {
                 value >= 500000000 && value <= 200000000000,
                 CustomError::WrongAmount
             );
-            value * 100000 / presale_data.price_per_token_in_sol
+            value * PRECISION / presale_data.price_per_token_in_sol
         } else {
             // USDC Payment
             require!(
                 value >= 100_000000 && value <= 40_000_000000,
                 CustomError::WrongAmount
             );
-            value * 100000 / presale_data.price_per_token_in_usdc
+            value * PRECISION / presale_data.price_per_token_in_usdc
         };
 
         if payment_token == 0 {
@@ -164,14 +164,14 @@ pub mod solana_presale {
                 value >= 500000000 && value <= 200000000000,
                 CustomError::WrongAmount
             );
-            value * 100000 / presale_data.price_per_token_in_sol
+            value * PRECISION / presale_data.price_per_token_in_sol
         } else {
             // USDC Payment
             require!(
                 value >= 100_000000 && value <= 40_000_000000,
                 CustomError::WrongAmount
             );
-            value * 100000 / presale_data.price_per_token_in_usdc
+            value * PRECISION / presale_data.price_per_token_in_usdc
         };
         if payment_token == 0 {
             user_data.sol_investment_amount += value;
