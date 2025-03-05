@@ -5,7 +5,7 @@ use anchor_spl::{
 };
 use std::str::FromStr;
 
-declare_id!("8BBRV7FzKbi923SVZm3udHB1VTDQwwNnbHyyB114WG5A");
+declare_id!("a8iugBmjgGnthWf1C5GJUUJcwFse8T3S7pSzpW3T98u");
 
 #[program]
 pub mod solana_presale {
@@ -72,14 +72,14 @@ pub mod solana_presale {
                 value >= 500000000 && value <= 200000000000,
                 CustomError::WrongAmount
             );
-            value * 100000 / presale_data.price_per_token_in_sol
+            value * PRECISION / presale_data.price_per_token_in_sol
         } else {
             // USDC Payment
             require!(
                 value >= 100_000000 && value <= 40_000_000000,
                 CustomError::WrongAmount
             );
-            value * 100000 / presale_data.price_per_token_in_usdc
+            value * PRECISION / presale_data.price_per_token_in_usdc
         };
 
         if payment_token == 0 {
@@ -164,14 +164,14 @@ pub mod solana_presale {
                 value >= 500000000 && value <= 200000000000,
                 CustomError::WrongAmount
             );
-            value * 100000 / presale_data.price_per_token_in_sol
+            value * PRECISION / presale_data.price_per_token_in_sol
         } else {
             // USDC Payment
             require!(
                 value >= 100_000000 && value <= 40_000_000000,
                 CustomError::WrongAmount
             );
-            value * 100000 / presale_data.price_per_token_in_usdc
+            value * PRECISION / presale_data.price_per_token_in_usdc
         };
         if payment_token == 0 {
             user_data.sol_investment_amount += value;
@@ -379,6 +379,13 @@ pub mod solana_presale {
         let presale = &mut ctx.accounts.presale;
 
         presale.is_live = toggle;
+        Ok(())
+    }
+
+    pub fn update_presale_authority(ctx: Context<StopPresale>, authority:Pubkey) -> Result<()> {
+        let presale = &mut ctx.accounts.presale;
+
+        presale.authority = authority;
         Ok(())
     }
 
@@ -615,7 +622,8 @@ pub struct Invest<'info> {
 
     // Presale's USDC Token Account
     #[account(
-        mut,
+        init_if_needed,
+        payer=from,
         associated_token::mint = usdc_mint,
         associated_token::authority = presale
     )]
@@ -632,7 +640,7 @@ pub struct Invest<'info> {
 
     #[account(
         mut,
-        constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidUSDC)? @ CustomError::InvalidUSDC
+        // constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidUSDC)? @ CustomError::InvalidUSDC
     )]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
@@ -734,7 +742,7 @@ pub struct BuyAndStake<'info> {
     pub signer_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
-        constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidUSDC)? @ CustomError::InvalidUSDC
+        // constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidUSDC)? @ CustomError::InvalidUSDC
     )]
     pub usdc_mint: Box<Account<'info, Mint>>,
 

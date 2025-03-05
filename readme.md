@@ -233,3 +233,6 @@ This ads up to 5.000.000 AAV
 - initialization cost 0.00748 sol
 - network fee 0.00016
 ```
+```
+solana-keygen new --outfile target/deploy/solana_presale-keypair.json --force
+```
