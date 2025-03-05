@@ -336,9 +336,9 @@ describe("solana presale testcases", async() => {
       from:account2.publicKey,
       signer:account2.publicKey,
       presale:presalePda,
-      // investor_usdc_account:userUsdcTokenAccount.address,
-      // presaleUsdcAccount:presale_usdc_ata.address,
-      // usdcMint:usdc,
+      investor_usdc_account:userUsdcTokenAccount.address,
+      presaleUsdcAccount:presale_usdc_ata.address,
+      usdcMint:usdc,
       presaleTokenAccount:presale_ata,
       tokenMint:token,
       signerTokenAccount:reciever_ata.address,
@@ -350,7 +350,7 @@ describe("solana presale testcases", async() => {
 console.log("beforeBalance",beforeBalance)
 const investAmount = 0.5*1e9;
     // Add your test here.
-    await program.methods.investSol(new anchor.BN(investAmount))        
+    await program.methods.invest(new anchor.BN(investAmount),0)        
     .accounts(context)
     .signers([account2])
     .rpc();
@@ -402,7 +402,7 @@ const investAmount = 0.5*1e9;
 
     // Add your test here.
     
-    await program.methods.investUsdc(account2UsdcInvestment)        
+    await program.methods.invest(account2UsdcInvestment,1)        
     .accounts(context)
     .signers([account2])
     .rpc();
