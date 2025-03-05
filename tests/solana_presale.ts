@@ -150,7 +150,7 @@ let totalTokenStaked = 0;
 
 
 
-  it("initializer", async () => {
+  it.only("initializer", async () => {
     presale_usdc_ata = await getOrCreateAssociatedTokenAccount(
       program.provider.connection,
       payer,

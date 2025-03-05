@@ -3,12 +3,16 @@
 resolution = true
 skip-lint = false
 
-[programs.mainnet]
-solana_presale = "8BBRV7FzKbi923SVZm3udHB1VTDQwwNnbHyyB114WG5A"
+
+
+
+
+[programs.localnet]
+solana_presale = "abKv7EDBx3REPsbgpZVfyn39RH3kBsYUKQy18AfdHf9"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Mainnet"
+cluster = "Localnet"
 wallet = "~/.config/solana/id.json"

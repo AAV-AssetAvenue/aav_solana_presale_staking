@@ -5,7 +5,7 @@ use anchor_spl::{
 };
 use std::str::FromStr;
 
-declare_id!("8BBRV7FzKbi923SVZm3udHB1VTDQwwNnbHyyB114WG5A");
+declare_id!("abKv7EDBx3REPsbgpZVfyn39RH3kBsYUKQy18AfdHf9");
 
 #[program]
 pub mod solana_presale {
@@ -632,7 +632,7 @@ pub struct Invest<'info> {
 
     #[account(
         mut,
-        constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidUSDC)? @ CustomError::InvalidUSDC
+        // constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidUSDC)? @ CustomError::InvalidUSDC
     )]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
@@ -734,7 +734,7 @@ pub struct BuyAndStake<'info> {
     pub signer_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
-        constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidUSDC)? @ CustomError::InvalidUSDC
+        // constraint = usdc_mint.key() == Pubkey::from_str(USDC_ADDRESS).map_err(|_| CustomError::InvalidUSDC)? @ CustomError::InvalidUSDC
     )]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
