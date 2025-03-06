@@ -690,11 +690,12 @@ const userUsdcTokenAccount = anchor.utils.token.associatedAddress({
     const newAuthority = account2.publicKey
     const context = {
       presale:presalePda,
+      staking:stakingPda,
       signer:account1
     };
 
      await program.methods
-      .updatePresaleAuthority(account2.publicKey)
+      .updateAuthority(account2.publicKey)
       .accounts(context)
       .rpc();
    /**
@@ -737,42 +738,6 @@ const userUsdcTokenAccount = await getOrCreateAssociatedTokenAccount(
     assert.isTrue(afterBalance > beforeBalance+Number(account2Investment) - rentExemption);
   })
 
-  it("withdraw tokens",async()=>{
-    
-
-    const reciever_ata = await getOrCreateAssociatedTokenAccount(
-      program.provider.connection,
-      payer,
-      token,  // The mint address
-      account1 // Owner of the token account
-    );
-    const presale_ata = anchor.utils.token.associatedAddress({
-      mint: token,
-      owner: presalePda,
-    });
-
-    const context = {
-      presaleTokenAccount:presale_ata,
-      signerTokenAccount:reciever_ata.address,
-      presale:presalePda,
-      signer:account1,
-      tokenMint:token,
-      tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-      systemProgram: anchor.web3.SystemProgram.programId,
-      associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
-    }
-
-    // Add your test here.
-    await program.methods.adminWithdrawTokens()        
-    .accounts(context)
-    .rpc();
-    const balance = (await program.provider.connection.getTokenAccountBalance(reciever_ata.address))
-    const presaleBalance = (await program.provider.connection.getTokenAccountBalance(presale_ata))
-    const data = await program.account.presaleInfo.fetch(presalePda)
-    const stakingInfo = await program.account.stakingInfo.fetch(stakingPda);
-    // assert.equal(Number(balance.value.amount),Number(mintAmount* 10 ** metadata.decimals - Number(data.totalTokensSold) + Number(stakingInfo.totalTokensStaked)))
-    assert.equal(Number(presaleBalance.value.amount),Number(0))
-  })
 
 
 
@@ -800,31 +765,45 @@ const userUsdcTokenAccount = await getOrCreateAssociatedTokenAccount(
 
 
   it("stake",async()=>{
+
+    
     const STAKING_DATA_SEED = "staking_user_data";
      const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
            [Buffer.from(STAKING_DATA_SEED),account1.toBuffer()],
            program.programId
          );
         
-         const reciever_ata = anchor.utils.token.associatedAddress({
-           mint: token,
-           owner: account1,
-         });
-  
-  
+         const signer_ata =  await getOrCreateAssociatedTokenAccount(
+          program.provider.connection,
+          payer,
+          token,  // The mint address
+          account1 // Owner of the token account
+        );
+        const account2_ata = anchor.utils.token.associatedAddress({
+          mint: token,
+          owner: account2.publicKey,
+        });
          const staking_ata = anchor.utils.token.associatedAddress({
            mint: token,
            owner: stakingPda,
          });
-     
-         const stakingAmount= new BN(2e5) // 2 tokens
+         const stakingAmount= 2e5 // 2 tokens
+         await transfer(
+          program.provider.connection, 
+          payer, 
+          account2_ata,    // Sender (must sign)
+          signer_ata.address,  // Receiver (PDA cannot sign)
+          account2.publicKey,    // Explicitly adding sender as a signer
+          stakingAmount, 
+          [account2]   // Ensure the sender signs the transaction
+      );    
 
          const context = {
           from:account1,
            stakingData:dataPda,
            staking:stakingPda,
            stakingTokenAccount:staking_ata,
-           signerTokenAccount:reciever_ata,
+           signerTokenAccount:signer_ata.address,
            signer:account1,
            tokenMint:token,
            tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
@@ -833,7 +812,7 @@ const userUsdcTokenAccount = await getOrCreateAssociatedTokenAccount(
          }
      
          // Add your test here.
-         await program.methods.stake(stakingAmount)        
+         await program.methods.stake(new BN(2e5))        
          .accounts(context)
          .rpc(); 
   
@@ -850,12 +829,13 @@ const userUsdcTokenAccount = await getOrCreateAssociatedTokenAccount(
 
     try{
     const context1 = {
-      signer:account1,
+      signer:account2.publicKey,
       staking:stakingPda,
     }
     // Add your test here.
     await program.methods.allowClaiming(true)        
     .accounts(context1)
+    .signers([account2])
     .rpc();
   
   
@@ -911,11 +891,51 @@ const userUsdcTokenAccount = await getOrCreateAssociatedTokenAccount(
             //  assert.equal(Number(afterBalance.value.amount),Number(beforeBalance.value.amount)+stakingAmount.toNumber()+reward);
         }catch(e) {
         if (e instanceof anchor.AnchorError){
-              assert(e.message.includes("NoRewards"))
+          assert(e.message.includes("NoRewards"))
             }else{
               assert(false);
             }
         }
   })
+
+  it("withdraw tokens",async()=>{
+    
+
+    const reciever_ata = await getOrCreateAssociatedTokenAccount(
+      program.provider.connection,
+      payer,
+      token,  // The mint address
+      account2.publicKey // Owner of the token account
+    );
+    const presale_ata = anchor.utils.token.associatedAddress({
+      mint: token,
+      owner: presalePda,
+    });
+
+    const context = {
+      presaleTokenAccount:presale_ata,
+      stakingTokenAccount:staking_ata.address,
+      signerTokenAccount:reciever_ata.address,
+      presale:presalePda,
+      signer:account2.publicKey,
+      tokenMint:token,
+      tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+      systemProgram: anchor.web3.SystemProgram.programId,
+      associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
+    }
+
+    // Add your test here.
+    await program.methods.adminWithdrawTokens()        
+    .accounts(context)
+    .signers([account2])
+    .rpc();
+    const balance = (await program.provider.connection.getTokenAccountBalance(reciever_ata.address))
+    const presaleBalance = (await program.provider.connection.getTokenAccountBalance(presale_ata))
+    const data = await program.account.presaleInfo.fetch(presalePda)
+    const stakingInfo = await program.account.stakingInfo.fetch(stakingPda);
+    // assert.equal(Number(balance.value.amount),Number(mintAmount* 10 ** metadata.decimals - Number(data.totalTokensSold) + Number(stakingInfo.totalTokensStaked)))
+    assert.equal(Number(presaleBalance.value.amount),Number(0))
+  })
+
  
 });

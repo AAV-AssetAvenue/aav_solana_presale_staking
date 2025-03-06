@@ -348,7 +348,7 @@ pub mod solana_presale {
             .total_tokens_rewarded
             .checked_add(reward_accumulated)
             .ok_or(CustomError::Overflow)?;
-        
+
         user_info.total_staking_balance = 0;
         user_info.is_first_time = false;
 
