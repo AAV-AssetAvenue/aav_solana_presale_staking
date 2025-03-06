@@ -65,6 +65,11 @@ pub mod solana_presale {
             cur_timestamp >= presale_data.start_time,
             CustomError::PresaleNotStarted
         );
+        // Ensure the payment token is either 0 (SOL) or 1 (USDC)
+        require!(
+            payment_token == 0 || payment_token == 1,
+            CustomError::InvalidPaymentToken
+        );
 
         let number_of_tokens = if payment_token == 0 {
             // SOL Payment
@@ -146,7 +151,11 @@ pub mod solana_presale {
         let user_data = &mut ctx.accounts.investment_data;
 
         require!(presale_data.is_live, CustomError::PresaleNotLive);
-
+        // Ensure the payment token is either 0 (SOL) or 1 (USDC)
+         require!(
+            payment_token == 0 || payment_token == 1,
+            CustomError::InvalidPaymentToken
+        );
         let cur_timestamp = u64::try_from(Clock::get()?.unix_timestamp).unwrap();
         require!(
             cur_timestamp >= presale_data.start_time,
@@ -339,6 +348,7 @@ pub mod solana_presale {
             .total_tokens_rewarded
             .checked_add(reward_accumulated)
             .ok_or(CustomError::Overflow)?;
+        
         user_info.total_staking_balance = 0;
         user_info.is_first_time = false;
 
@@ -382,40 +392,45 @@ pub mod solana_presale {
         Ok(())
     }
 
-    pub fn update_presale_authority(ctx: Context<StopPresale>, authority:Pubkey) -> Result<()> {
+    pub fn update_authority(ctx: Context<TransferOwnership>, authority:Pubkey) -> Result<()> {
         let presale = &mut ctx.accounts.presale;
+        let staking = &mut ctx.accounts.staking;
 
         presale.authority = authority;
+        staking.authority = authority;
         Ok(())
     }
 
     // emergency function for admin to withdraw tokens from staking. should be used in emergency scenario.
     pub fn admin_withdraw_tokens(ctx: Context<AdminWithdrawTokens>) -> Result<()> {
-        transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.staking_token_account.to_account_info(),
-                    to: ctx.accounts.signer_token_account.to_account_info(),
-                    authority: ctx.accounts.staking.to_account_info(),
-                },
-                &[&[STAKING_SEED, &[ctx.bumps.staking]][..]],
-            ),
-            ctx.accounts.staking_token_account.amount, //  balance of the staking token account.
-        )?;
-        transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.presale_token_account.to_account_info(),
-                    to: ctx.accounts.signer_token_account.to_account_info(),
-                    authority: ctx.accounts.presale.to_account_info(),
-                },
-                &[&[PRESALE_SEED, &[ctx.bumps.presale]][..]],
-            ),
-            ctx.accounts.presale_token_account.amount, //  balance of the presale token account.
-        )?;
-
+        if ctx.accounts.staking_token_account.amount > 0{
+            transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.staking_token_account.to_account_info(),
+                        to: ctx.accounts.signer_token_account.to_account_info(),
+                        authority: ctx.accounts.staking.to_account_info(),
+                    },
+                    &[&[STAKING_SEED, &[ctx.bumps.staking]][..]],
+                ),
+                ctx.accounts.staking_token_account.amount, //  balance of the staking token account.
+            )?;
+        }
+        if ctx.accounts.presale_token_account.amount > 0 {
+            transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.presale_token_account.to_account_info(),
+                        to: ctx.accounts.signer_token_account.to_account_info(),
+                        authority: ctx.accounts.presale.to_account_info(),
+                    },
+                    &[&[PRESALE_SEED, &[ctx.bumps.presale]][..]],
+                ),
+                ctx.accounts.presale_token_account.amount, //  balance of the presale token account.
+            )?;
+        }
         Ok(())
     }
 
@@ -965,6 +980,26 @@ pub struct StopPresale<'info> {
     )]
     pub presale: Box<Account<'info, PresaleInfo>>,
 }
+#[derive(Accounts)]
+pub struct TransferOwnership<'info> {
+    #[account(
+        mut,
+        constraint = signer.key() == presale.authority.key() @ CustomError::Unauthorized,
+    )]
+    pub signer: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [PRESALE_SEED],
+        bump
+    )]
+    pub presale: Box<Account<'info, PresaleInfo>>,
+    #[account(
+        mut,
+        seeds = [STAKING_SEED],
+        bump
+    )]
+    pub staking: Box<Account<'info, StakingInfo>>,
+}
 
 ////////////////////////////////////////////////////////////
 //                        Custom Errors
@@ -995,4 +1030,6 @@ pub enum CustomError {
     ClaimLocked,
     #[msg("NoRewards")]
     NoRewards,
+    #[msg("InvalidPaymentToken")]
+    InvalidPaymentToken,
 }
