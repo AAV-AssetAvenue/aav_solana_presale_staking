@@ -59,18 +59,22 @@ async function main() {
     try {
        
         const USDC_MINT = new anchor.web3.PublicKey(
-          "HtcmNSmpM6xGWLH7TcUiyjXQcej32qc15wyzawJYKNMn"
+          "4Fa3EWgea8bYwFjRdAxn9b7FhzFSYZR41Tnkn39SvSLX"
         );
         //HtcmNSmpM6xGWLH7TcUiyjXQcej32qc15wyzawJYKNMn aav token
+        //4Fa3EWgea8bYwFjRdAxn9b7FhzFSYZR41Tnkn39SvSLX usdc token
     
           const presale_usdc_ata = await getOrCreateAssociatedTokenAccount(
               program.provider.connection,
               wallet.payer,
               USDC_MINT,
-              new PublicKey("8jaSBiW9NUBHsBtS5VVfp6CSY52PFv5dthqjZKwtegMc"),
+              new PublicKey("9DSZEoCUruUUkuHZCbKaGo5wohTC8GuPYqgzBUNzdht6"),
               true
           );
 console.log(presale_usdc_ata.address.toBase58());
+const balance = (await program.provider.connection.getTokenAccountBalance(new PublicKey("CniDWpEYFdUkyGwg74qF8EbQtEyULdEAiso7K9eZ71Lx")))
+console.log(balance.value.uiAmount);
+console.log(balance.value.amount);
     } catch (error) {
         console.error("Error fetching fee accounts:", error);
     }

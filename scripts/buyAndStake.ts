@@ -55,8 +55,10 @@ async function main() {
 
     // Example: Fetch fee account data (adjust according to your program's account structure)
     try {
+        const DATA_SEED = "my_data";
         const PRESALE_SEED = "solana_presale";
         const STAKING_SEED = "solana_staking";
+        const DATA_SEED_STAKING = "staking_user_data";
         const PROGRAM_ID = new anchor.web3.PublicKey(
           "dseD4adu7DMFkPUkVY6nSWSRePq2gAzftGQZYuAxRbg"
         ); // Your staking program ID
@@ -96,6 +98,16 @@ async function main() {
             "CrepGjpjjaHiXEPhEw2rLywEtjgR9sRvL3LfUrPQq9im"
           ),
         });
+
+          const [dataPda] = anchor.web3.PublicKey.findProgramAddressSync(
+                [Buffer.from(DATA_SEED),wallet.publicKey.toBuffer()],
+                program.programId
+              );
+              
+          const [stakingDataPda] = anchor.web3.PublicKey.findProgramAddressSync(
+                [Buffer.from(DATA_SEED_STAKING),wallet.publicKey.toBuffer()],
+                program.programId
+              );
         console.log("presalePda", presalePda.toString());
         console.log("stakingPda", stakingPda.toString());
         console.log("presale_ata", presale_ata.toString());
@@ -104,47 +116,35 @@ async function main() {
         console.log("usdc_presale_ata", usdc_presale_ata.toString());
         console.log("usdc_signer_ata", usdc_signer_ata.toString());
         
-const startPresaleContext = {
-      signer:wallet.publicKey,
-      presale:presalePda,
-      staking:stakingPda,
-      tokenMint:TOKEN_MINT,
-      usdcMint:USDC_MINT,
-      presaleUsdcAccount:usdc_presale_ata,
-      stakingTokenAccount:staking_ata,
-      presaleTokenAccount:presale_ata,
-      systemProgram: anchor.web3.SystemProgram.programId,
-      tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-      associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
-      
-    }
 
-    // Add your test here.
-    const configIx =  await program.methods.initializer(
-      new BN(1741088159),
-      new BN(368664),
-      new BN(79067) 
-    )        
-    .accounts(startPresaleContext)
-    .instruction();
 
-            // @ts-ignore
-            // const configIx = await program.methods
-            //     .setConfig(
-            //         tradeFee,
-            //         new anchor.BN(creationFee),
-            //         feeCollector,
-            //         nativeFee,
-            //         initialBuyLimit
-            //     )
-            //     .accounts({
-            //         configAccount,
-            //         user,
-            //         systemProgram: SYSTEM_PROGRAM_ID,
-            //     })
-            //     .instruction();
+  
 
-            // console.log("Config IX:", configIx);
+      const context = {
+            investmentData:dataPda.toString(),
+            stakingData:stakingDataPda.toString(),
+            presale:presalePda.toString(),
+            staking:stakingPda.toString(),
+            from:wallet.publicKey.toString(),
+            signer:wallet.publicKey.toString(),
+            tokenMint:TOKEN_MINT.toString(),
+            presaleTokenAccount:presale_ata.toString(),
+            stakingTokenAccount:staking_ata.toString(),
+            usdcMint:USDC_MINT.toString(),
+            presaleUsdcAccount:usdc_presale_ata.toString(),
+            signerUsdAccount:usdc_signer_ata.toString(),
+            tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID.toString(),
+            systemProgram: anchor.web3.SystemProgram.programId.toString(),
+            associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID.toString(),
+          }
+
+          console.log("context",context)
+          // Add your test here.
+          const configIx = await program.methods.buyAndStake(new BN(100e6),1)        
+          .accounts(context)
+          .instruction()
+    
+
 
             const tx = new Transaction().add(configIx);
 
@@ -154,10 +154,10 @@ const startPresaleContext = {
             // console.log("Transaction:", tx);
             const signedTx = await wallet.signTransaction(tx);
 
-            //  const simulateResult = await connection.simulateTransaction(signedTx);
-            // console.log("Simulate result: ", simulateResult);
-            const txId = await sendAndConfirmTransaction(connection, signedTx, [keypair]);
-            console.log("txId ", txId);
+             const simulateResult = await connection.simulateTransaction(signedTx);
+            console.log("Simulate result: ", simulateResult);
+            // const txId = await sendAndConfirmTransaction(connection, signedTx, [keypair]);
+            // console.log("txId ", txId);
     } catch (error) {
         console.error("Error fetching fee accounts:", error);
     }
@@ -166,3 +166,7 @@ const startPresaleContext = {
 main().catch((error) => {
     console.error("Error in main():", error);
 });
+
+
+
+
