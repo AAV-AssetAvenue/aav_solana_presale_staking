@@ -8,7 +8,7 @@ skip-lint = false
 
 
 [programs.localnet]
-solana_presale = "a8iugBmjgGnthWf1C5GJUUJcwFse8T3S7pSzpW3T98u"
+solana_presale = "dseD4adu7DMFkPUkVY6nSWSRePq2gAzftGQZYuAxRbg"
 
 [registry]
 url = "https://api.apr.dev"

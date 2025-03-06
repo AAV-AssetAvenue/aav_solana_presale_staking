@@ -223,10 +223,10 @@ This ads up to 5.000.000 AAV
 
 ## deployment cost
 ```shell
-- contract deployment cost 10.11265 sol
-- network fee 0.00016
+spl token deployment cost = 0.001471599999998574 sol
 
-- 3.33786sol
+presale cost 
+- 2.9601826399999993 sol
 - network fee 0.00001
 
 
@@ -235,4 +235,10 @@ This ads up to 5.000.000 AAV
 ```
 ```
 solana-keygen new --outfile target/deploy/solana_presale-keypair.json --force
+```
+```shell
+solana-keygen grind --starts-with AAV:1    
+spl-token create-token --decimals 5 ./AAVCgP8rtT1gsGT19imEoJ6Y6zUHe2uSCCdSFTmY3yi.json
+spl-token create-account AAVCgP8rtT1gsGT19imEoJ6Y6zUHe2uSCCdSFTmY3yi  --owner CrepGjpjjaHiXEPhEw2rLywEtjgR9sRvL3LfUrPQq9im --fee-payer ~/.config/solana/id.json
+spl-token mint AAVCgP8rtT1gsGT19imEoJ6Y6zUHe2uSCCdSFTmY3yi 100 -- 9K5TJXgPhPpUbrRyuU15ssHRNNygGTPfZ4QgMVN6a4v7
 ```

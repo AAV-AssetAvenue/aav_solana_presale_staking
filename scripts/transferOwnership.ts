@@ -2,6 +2,7 @@ import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
 import {
     Connection,
     Keypair,
+    sendAndConfirmTransaction,
     Transaction,
 } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
@@ -9,7 +10,6 @@ import idl from "../target/idl/solana_presale.json";
 import bs58 from "bs58";
 import { BN } from "bn.js";
 import { SolanaPresale } from "../target/types/solana_presale";
-import { getOrCreateAssociatedTokenAccount } from "@solana/spl-token";
 import fs from "fs"
 
 // Replace with your mainnet RPC URL
@@ -17,7 +17,6 @@ const RPC_URL = "https://api.devnet.solana.com";
 
 // Retrieve your plain private key from an environment variable.
 // The PRIVATE_KEY should be a string (for example, a base58-encoded key)
-
 const privateKeyArray = JSON.parse(fs.readFileSync("/Users/asad97/.config/solana/id.json", 'utf8'));
 // Convert to Uint8Array
 const privateKeyUint8Array = new Uint8Array(privateKeyArray);
@@ -59,13 +58,13 @@ async function main() {
         const PRESALE_SEED = "solana_presale";
         const STAKING_SEED = "solana_staking";
         const PROGRAM_ID = new anchor.web3.PublicKey(
-          "3nnfTx68bKCRXZdZfKoFFfryWbnR3asFGmfLsXNPtXxK"
+          "8BBRV7FzKbi923SVZm3udHB1VTDQwwNnbHyyB114WG5A"
         ); // Your staking program ID
         const TOKEN_MINT = new anchor.web3.PublicKey(
-          "HtcmNSmpM6xGWLH7TcUiyjXQcej32qc15wyzawJYKNMn"
+          "oFfHK5q6vvBy6r7rBQJhynxJYiUoYzoC5D9XcCkvts6"
         );
         const USDC_MINT = new anchor.web3.PublicKey(
-          "4Fa3EWgea8bYwFjRdAxn9b7FhzFSYZR41Tnkn39SvSLX"
+          "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
         );
         const [presalePda] = anchor.web3.PublicKey.findProgramAddressSync(
           [Buffer.from(PRESALE_SEED)],
@@ -77,40 +76,38 @@ async function main() {
           PROGRAM_ID
         );
     
-        const presale_ata = anchor.utils.token.associatedAddress({
-          mint: TOKEN_MINT,
-          owner: presalePda,
-        });
-        const staking_ata = anchor.utils.token.associatedAddress({
-          mint: TOKEN_MINT,
-          owner: stakingPda,
-        });
-    
-        const usdc_presale_ata = anchor.utils.token.associatedAddress({
-          mint: USDC_MINT,
-          owner: presalePda,
-        });
-    
-        const usdc_signer_ata = anchor.utils.token.associatedAddress({
-          mint: USDC_MINT,
-          owner: new anchor.web3.PublicKey(
-            "HzmZ5f16agTyCrFFPDi2T7vgpAqfENSLUWLEefH3bpDX"
-          ),
-        });
         console.log("presalePda", presalePda.toString());
         console.log("stakingPda", stakingPda.toString());
-        console.log("presale_ata", presale_ata.toString());
-        console.log("staking_ata", staking_ata.toString());
     
-        console.log("usdc_presale_ata", usdc_presale_ata.toString());
-        console.log("usdc_signer_ata", usdc_signer_ata.toString());
-          const presale_usdc_ata = await getOrCreateAssociatedTokenAccount(
-              program.provider.connection,
-              wallet.payer,
-              USDC_MINT,
-              presalePda,
-              true
-          );
+
+
+    // Add your test here.
+    const newAuthority = new anchor.web3.PublicKey(
+      "HtcmNSmpM6xGWLH7TcUiyjXQcej32qc15wyzawJYKNMn"
+    );
+    const context = {
+      presale:presalePda,
+      signer:wallet.publicKey,
+    };
+
+     const configIx = await program.methods
+      .updatePresaleAuthority(newAuthority)
+      .accounts(context)
+      .instruction();
+     
+
+            const tx = new Transaction().add(configIx);
+
+            tx.feePayer = wallet.publicKey;
+            tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+            // console.log("Transaction:", tx);
+            const signedTx = await wallet.signTransaction(tx);
+
+            // const simulateResult = await connection.simulateTransaction(signedTx);
+            // console.log("Simulate result: ", simulateResult);
+            const txId = await sendAndConfirmTransaction(connection, signedTx, [keypair]);
+            console.log("txId ", txId);
 
     } catch (error) {
         console.error("Error fetching fee accounts:", error);
