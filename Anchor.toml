@@ -7,14 +7,14 @@ skip-lint = false
 
 
 
-[programs.localnet]
-solana_presale = "a8iugBmjgGnthWf1C5GJUUJcwFse8T3S7pSzpW3T98u"
+[programs.devnet]
+solana_presale = "cKJnfPq2SPoosyz6YnnQKpsiMdqcYB9RHWm2F95H6n4"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Localnet"
+cluster = "Devnet"
 wallet = "~/.config/solana/id.json"
 
 

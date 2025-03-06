@@ -58,13 +58,13 @@ async function main() {
         const PRESALE_SEED = "solana_presale";
         const STAKING_SEED = "solana_staking";
         const PROGRAM_ID = new anchor.web3.PublicKey(
-          "8BBRV7FzKbi923SVZm3udHB1VTDQwwNnbHyyB114WG5A"
+          "cKJnfPq2SPoosyz6YnnQKpsiMdqcYB9RHWm2F95H6n4"
         ); // Your staking program ID
         const TOKEN_MINT = new anchor.web3.PublicKey(
-          "oFfHK5q6vvBy6r7rBQJhynxJYiUoYzoC5D9XcCkvts6"
+          "HtcmNSmpM6xGWLH7TcUiyjXQcej32qc15wyzawJYKNMn"
         );
         const USDC_MINT = new anchor.web3.PublicKey(
-          "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+          "4Fa3EWgea8bYwFjRdAxn9b7FhzFSYZR41Tnkn39SvSLX"
         );
         const [presalePda] = anchor.web3.PublicKey.findProgramAddressSync(
           [Buffer.from(PRESALE_SEED)],
@@ -93,7 +93,7 @@ async function main() {
         const usdc_signer_ata = anchor.utils.token.associatedAddress({
           mint: USDC_MINT,
           owner: new anchor.web3.PublicKey(
-            "HzmZ5f16agTyCrFFPDi2T7vgpAqfENSLUWLEefH3bpDX"
+            "CrepGjpjjaHiXEPhEw2rLywEtjgR9sRvL3LfUrPQq9im"
           ),
         });
         console.log("presalePda", presalePda.toString());
@@ -154,7 +154,7 @@ const startPresaleContext = {
             // console.log("Transaction:", tx);
             const signedTx = await wallet.signTransaction(tx);
 
-             // const simulateResult = await connection.simulateTransaction(signedTx);
+            //  const simulateResult = await connection.simulateTransaction(signedTx);
             // console.log("Simulate result: ", simulateResult);
             const txId = await sendAndConfirmTransaction(connection, signedTx, [keypair]);
             console.log("txId ", txId);

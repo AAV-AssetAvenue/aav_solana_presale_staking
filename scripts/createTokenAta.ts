@@ -2,6 +2,7 @@ import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
 import {
     Connection,
     Keypair,
+    PublicKey,
     Transaction,
 } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
@@ -56,64 +57,20 @@ async function main() {
 
     // Example: Fetch fee account data (adjust according to your program's account structure)
     try {
-           const PRESALE_SEED = "solana_presale";
-                const STAKING_SEED = "solana_staking";
-                const PROGRAM_ID = new anchor.web3.PublicKey(
-                  "a8iugBmjgGnthWf1C5GJUUJcwFse8T3S7pSzpW3T98u"
-                ); // Your staking program ID
-                const TOKEN_MINT = new anchor.web3.PublicKey(
-                  "HtcmNSmpM6xGWLH7TcUiyjXQcej32qc15wyzawJYKNMn"
-                );
-                const USDC_MINT = new anchor.web3.PublicKey(
-                  "4Fa3EWgea8bYwFjRdAxn9b7FhzFSYZR41Tnkn39SvSLX"
-                );
-                const [presalePda] = anchor.web3.PublicKey.findProgramAddressSync(
-                  [Buffer.from(PRESALE_SEED)],
-                  PROGRAM_ID
-                );
-            
-                const [stakingPda] = anchor.web3.PublicKey.findProgramAddressSync(
-                  [Buffer.from(STAKING_SEED)],
-                  PROGRAM_ID
-                );
-            
-                const presale_ata = anchor.utils.token.associatedAddress({
-                  mint: TOKEN_MINT,
-                  owner: presalePda,
-                });
-                const staking_ata = anchor.utils.token.associatedAddress({
-                  mint: TOKEN_MINT,
-                  owner: stakingPda,
-                });
-            
-                const usdc_presale_ata = anchor.utils.token.associatedAddress({
-                  mint: USDC_MINT,
-                  owner: presalePda,
-                });
-            
-                const usdc_signer_ata = anchor.utils.token.associatedAddress({
-                  mint: USDC_MINT,
-                  owner: new anchor.web3.PublicKey(
-                    "CrepGjpjjaHiXEPhEw2rLywEtjgR9sRvL3LfUrPQq9im"
-                  ),
-                });
-                console.log("presalePda", presalePda.toString());
-                console.log("stakingPda", stakingPda.toString());
-                console.log("presale_ata", presale_ata.toString());
-                console.log("staking_ata", staking_ata.toString());
-            
-                console.log("usdc_presale_ata", usdc_presale_ata.toString());
-                console.log("usdc_signer_ata", usdc_signer_ata.toString());
-                
+       
+        const USDC_MINT = new anchor.web3.PublicKey(
+          "HtcmNSmpM6xGWLH7TcUiyjXQcej32qc15wyzawJYKNMn"
+        );
+        //HtcmNSmpM6xGWLH7TcUiyjXQcej32qc15wyzawJYKNMn aav token
+    
           const presale_usdc_ata = await getOrCreateAssociatedTokenAccount(
               program.provider.connection,
               wallet.payer,
               USDC_MINT,
-              presalePda,
+              new PublicKey("8jaSBiW9NUBHsBtS5VVfp6CSY52PFv5dthqjZKwtegMc"),
               true
           );
-          console.log(presale_usdc_ata.address.toBase58());
-
+console.log(presale_usdc_ata.address.toBase58());
     } catch (error) {
         console.error("Error fetching fee accounts:", error);
     }
