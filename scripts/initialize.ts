@@ -121,9 +121,9 @@ const startPresaleContext = {
 
     // Add your test here.
     const configIx =  await program.methods.initializer(
-      new BN(1741088159),
-      new BN(368664),
-      new BN(79067) 
+      new BN(Math.floor((Date.now()/1000))),
+      new BN(431250),
+      new BN(70000) 
     )        
     .accounts(startPresaleContext)
     .instruction();

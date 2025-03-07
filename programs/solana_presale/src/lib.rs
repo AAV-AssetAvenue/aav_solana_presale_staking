@@ -402,7 +402,7 @@ pub mod solana_presale {
     }
 
     // emergency function for admin to withdraw tokens from staking. should be used in emergency scenario.
-    pub fn admin_withdraw_tokens(ctx: Context<AdminWithdrawTokens>) -> Result<()> {
+    pub fn admin_withdraw_staking_tokens(ctx: Context<AdminWithdrawTokens>) -> Result<()> {
         if ctx.accounts.staking_token_account.amount > 0{
             transfer(
                 CpiContext::new_with_signer(
@@ -417,6 +417,12 @@ pub mod solana_presale {
                 ctx.accounts.staking_token_account.amount, //  balance of the staking token account.
             )?;
         }
+        Ok(())
+    }
+
+    // emergency function for admin to withdraw tokens from staking. should be used in emergency scenario.
+    pub fn admin_withdraw_tokens(ctx: Context<AdminWithdrawTokens>) -> Result<()> {
+       
         if ctx.accounts.presale_token_account.amount > 0 {
             transfer(
                 CpiContext::new_with_signer(
