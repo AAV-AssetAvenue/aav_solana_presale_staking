@@ -420,7 +420,7 @@ pub mod solana_presale {
         Ok(())
     }
 
-    // emergency function for admin to withdraw tokens from staking. should be used in emergency scenario.
+    // should be called after presale end by admin to pull out remaining tokens.
     pub fn admin_withdraw_tokens(ctx: Context<AdminWithdrawTokens>) -> Result<()> {
        
         if ctx.accounts.presale_token_account.amount > 0 {

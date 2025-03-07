@@ -929,6 +929,10 @@ const userUsdcTokenAccount = await getOrCreateAssociatedTokenAccount(
     .accounts(context)
     .signers([account2])
     .rpc();
+    await program.methods.adminWithdrawStakingTokens()        
+    .accounts(context)
+    .signers([account2])
+    .rpc();
     const balance = (await program.provider.connection.getTokenAccountBalance(reciever_ata.address))
     const presaleBalance = (await program.provider.connection.getTokenAccountBalance(presale_ata))
     const data = await program.account.presaleInfo.fetch(presalePda)
