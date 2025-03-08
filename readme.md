@@ -241,4 +241,7 @@ solana-keygen grind --starts-with AAV:1
 spl-token create-token --decimals 5 ./AAVCgP8rtT1gsGT19imEoJ6Y6zUHe2uSCCdSFTmY3yi.json
 spl-token create-account AAVCgP8rtT1gsGT19imEoJ6Y6zUHe2uSCCdSFTmY3yi  --owner CrepGjpjjaHiXEPhEw2rLywEtjgR9sRvL3LfUrPQq9im --fee-payer ~/.config/solana/id.json
 spl-token mint AAVCgP8rtT1gsGT19imEoJ6Y6zUHe2uSCCdSFTmY3yi 100 -- 9K5TJXgPhPpUbrRyuU15ssHRNNygGTPfZ4QgMVN6a4v7
+spl-token authorize AAVCgP8rtT1gsGT19imEoJ6Y6zUHe2uSCCdSFTmY3yi  mint --disable --owner /Users/asad97/.config/solana/id.json
+spl-token authorize AAVCgP8rtT1gsGT19imEoJ6Y6zUHe2uSCCdSFTmY3yi  freeze --disable --owner /Users/asad97/.config/solana/id.json
+
 ```

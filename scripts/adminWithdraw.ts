@@ -11,13 +11,15 @@ import bs58 from "bs58";
 import { BN } from "bn.js";
 import { SolanaPresale } from "../target/types/solana_presale";
 import fs from "fs"
-
+import path from "path"
+import { homedir } from "os";
 // Replace with your mainnet RPC URL
 const RPC_URL = "https://api.devnet.solana.com";
 
 // Retrieve your plain private key from an environment variable.
 // The PRIVATE_KEY should be a string (for example, a base58-encoded key)
-const privateKeyArray = JSON.parse(fs.readFileSync("/Users/asad97/.config/solana/id.json", 'utf8'));
+const privateKeyArray = JSON.parse(fs.readFileSync(path.join(homedir(),".config/solana/id.json"), 'utf8'));
+
 // Convert to Uint8Array
 const privateKeyUint8Array = new Uint8Array(privateKeyArray);
 
@@ -79,19 +81,39 @@ async function main() {
         console.log("presalePda", presalePda.toString());
         console.log("stakingPda", stakingPda.toString());
     
-
-
-    // Add your test here.
-    const newAuthority = new anchor.web3.PublicKey(
-      "HtcmNSmpM6xGWLH7TcUiyjXQcej32qc15wyzawJYKNMn"
-    );
+  const presale_ata = anchor.utils.token.associatedAddress({
+          mint: TOKEN_MINT,
+          owner: presalePda,
+        });
+        const staking_ata = anchor.utils.token.associatedAddress({
+          mint: TOKEN_MINT,
+          owner: stakingPda,
+        });
+    
+        const usdc_presale_ata = anchor.utils.token.associatedAddress({
+          mint: USDC_MINT,
+          owner: presalePda,
+        });
+    
+        const usdc_signer_ata = anchor.utils.token.associatedAddress({
+          mint: USDC_MINT,
+          owner: new anchor.web3.PublicKey(
+            "CrepGjpjjaHiXEPhEw2rLywEtjgR9sRvL3LfUrPQq9im"
+          ),
+        });
     const context = {
-      presale:presalePda,
-      signer:wallet.publicKey,
-    };
-
+         
+         signer:wallet.publicKey,
+         presale:presalePda,
+         presaleUsdcAccount:usdc_presale_ata,
+         signerUsdAccount:usdc_signer_ata,
+         usdcMint:USDC_MINT,
+         systemProgram: anchor.web3.SystemProgram.programId,
+         tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+         associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
+       }
      const configIx = await program.methods
-      .updateAuthority(newAuthority)
+      .adminWithdrawUsdcAndSol()
       .accounts(context)
       .instruction();
      
@@ -114,6 +136,8 @@ async function main() {
     }
 }
 
+
+
 main().catch((error) => {
-    console.error("Error in main():", error);
+  console.error("Error in main():", error);
 });
