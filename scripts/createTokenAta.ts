@@ -19,7 +19,7 @@ const RPC_URL = "https://api.devnet.solana.com";
 // Retrieve your plain private key from an environment variable.
 // The PRIVATE_KEY should be a string (for example, a base58-encoded key)
 
-const privateKeyArray = JSON.parse(fs.readFileSync("/Users/asad97/.config/solana/id.json", 'utf8'));
+const privateKeyArray = JSON.parse(fs.readFileSync("/Users/shehryarali/.config/solana/id.json", 'utf8'));
 // Convert to Uint8Array
 const privateKeyUint8Array = new Uint8Array(privateKeyArray);
 
@@ -59,7 +59,7 @@ async function main() {
     try {
        
         const USDC_MINT = new anchor.web3.PublicKey(
-          "4Fa3EWgea8bYwFjRdAxn9b7FhzFSYZR41Tnkn39SvSLX"
+          "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
         );
         //HtcmNSmpM6xGWLH7TcUiyjXQcej32qc15wyzawJYKNMn aav token
         //4Fa3EWgea8bYwFjRdAxn9b7FhzFSYZR41Tnkn39SvSLX usdc token
@@ -68,13 +68,13 @@ async function main() {
               program.provider.connection,
               wallet.payer,
               USDC_MINT,
-              new PublicKey("9DSZEoCUruUUkuHZCbKaGo5wohTC8GuPYqgzBUNzdht6"),
+              new PublicKey("ewVWF1VCnnrxRGyK7LnFY4YNGbTh7XU3BWvkWZ5fWQQ"),
               true
           );
 console.log(presale_usdc_ata.address.toBase58());
-const balance = (await program.provider.connection.getTokenAccountBalance(new PublicKey("CniDWpEYFdUkyGwg74qF8EbQtEyULdEAiso7K9eZ71Lx")))
-console.log(balance.value.uiAmount);
-console.log(balance.value.amount);
+// const balance = (await program.provider.connection.getTokenAccountBalance(new PublicKey("CniDWpEYFdUkyGwg74qF8EbQtEyULdEAiso7K9eZ71Lx")))
+// console.log(balance.value.uiAmount);
+// console.log(balance.value.amount);
     } catch (error) {
         console.error("Error fetching fee accounts:", error);
     }

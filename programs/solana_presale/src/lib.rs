@@ -5,7 +5,7 @@ use anchor_spl::{
 };
 use std::str::FromStr;
 
-declare_id!("dseD4adu7DMFkPUkVY6nSWSRePq2gAzftGQZYuAxRbg");
+declare_id!("PwPPdoNVMJiUbQyHLTRif18JdKJiAKopv9y4i78y8M3");
 
 #[program]
 pub mod solana_presale {

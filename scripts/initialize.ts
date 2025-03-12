@@ -17,7 +17,7 @@ const RPC_URL = "https://api.devnet.solana.com";
 
 // Retrieve your plain private key from an environment variable.
 // The PRIVATE_KEY should be a string (for example, a base58-encoded key)
-const privateKeyArray = JSON.parse(fs.readFileSync("/Users/asad97/.config/solana/id.json", 'utf8'));
+const privateKeyArray = JSON.parse(fs.readFileSync("/Users/shehryarali/.config/solana/id.json", 'utf8'));
 // Convert to Uint8Array
 const privateKeyUint8Array = new Uint8Array(privateKeyArray);
 
@@ -58,13 +58,13 @@ async function main() {
         const PRESALE_SEED = "solana_presale";
         const STAKING_SEED = "solana_staking";
         const PROGRAM_ID = new anchor.web3.PublicKey(
-          "dseD4adu7DMFkPUkVY6nSWSRePq2gAzftGQZYuAxRbg"
+          "PwPPdoNVMJiUbQyHLTRif18JdKJiAKopv9y4i78y8M3"
         ); // Your staking program ID
         const TOKEN_MINT = new anchor.web3.PublicKey(
-          "HtcmNSmpM6xGWLH7TcUiyjXQcej32qc15wyzawJYKNMn"
+          "AAVzPbhsinQk5jnTzsRrhftrjB6txyopdkqH8QmuGVo9"
         );
         const USDC_MINT = new anchor.web3.PublicKey(
-          "4Fa3EWgea8bYwFjRdAxn9b7FhzFSYZR41Tnkn39SvSLX"
+          "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
         );
         const [presalePda] = anchor.web3.PublicKey.findProgramAddressSync(
           [Buffer.from(PRESALE_SEED)],
@@ -93,7 +93,7 @@ async function main() {
         const usdc_signer_ata = anchor.utils.token.associatedAddress({
           mint: USDC_MINT,
           owner: new anchor.web3.PublicKey(
-            "CrepGjpjjaHiXEPhEw2rLywEtjgR9sRvL3LfUrPQq9im"
+            "52tH9vNTVAL4PucVXVqXkkA31wnw4V9hcHmjRiwoTiJA"
           ),
         });
         console.log("presalePda", presalePda.toString());
@@ -154,10 +154,11 @@ const startPresaleContext = {
             // console.log("Transaction:", tx);
             const signedTx = await wallet.signTransaction(tx);
 
-            //  const simulateResult = await connection.simulateTransaction(signedTx);
-            // console.log("Simulate result: ", simulateResult);
-            const txId = await sendAndConfirmTransaction(connection, signedTx, [keypair]);
-            console.log("txId ", txId);
+            const simulateResult = await connection.simulateTransaction(signedTx);
+            console.log("Simulate result: ", simulateResult);
+
+            // const txId = await sendAndConfirmTransaction(connection, signedTx, [keypair]);
+            // console.log("txId ", txId);
     } catch (error) {
         console.error("Error fetching fee accounts:", error);
     }

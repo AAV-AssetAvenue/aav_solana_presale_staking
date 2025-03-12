@@ -17,7 +17,7 @@ const RPC_URL = "https://api.devnet.solana.com";
 
 // Retrieve your plain private key from an environment variable.
 // The PRIVATE_KEY should be a string (for example, a base58-encoded key)
-const privateKeyArray = JSON.parse(fs.readFileSync("/Users/asad97/.config/solana/id.json", 'utf8'));
+const privateKeyArray = JSON.parse(fs.readFileSync("/Users/shehryarali/.config/solana/id.json", 'utf8'));
 // Convert to Uint8Array
 const privateKeyUint8Array = new Uint8Array(privateKeyArray);
 
@@ -58,10 +58,10 @@ async function main() {
         const PRESALE_SEED = "solana_presale";
         const STAKING_SEED = "solana_staking";
         const PROGRAM_ID = new anchor.web3.PublicKey(
-          "8BBRV7FzKbi923SVZm3udHB1VTDQwwNnbHyyB114WG5A"
+          "PwPPdoNVMJiUbQyHLTRif18JdKJiAKopv9y4i78y8M3"
         ); // Your staking program ID
         const TOKEN_MINT = new anchor.web3.PublicKey(
-          "oFfHK5q6vvBy6r7rBQJhynxJYiUoYzoC5D9XcCkvts6"
+          "AAVzPbhsinQk5jnTzsRrhftrjB6txyopdkqH8QmuGVo9"
         );
         const USDC_MINT = new anchor.web3.PublicKey(
           "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
@@ -83,7 +83,7 @@ async function main() {
 
     // Add your test here.
     const newAuthority = new anchor.web3.PublicKey(
-      "HtcmNSmpM6xGWLH7TcUiyjXQcej32qc15wyzawJYKNMn"
+      "7PDJ7pNhZg81skxHsAW9QhKi5XyRnzWaQc89BiNoBXS3"
     );
     const context = {
       presale:presalePda,

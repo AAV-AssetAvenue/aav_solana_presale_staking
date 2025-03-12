@@ -4,7 +4,7 @@ resolution = true
 skip-lint = false
 
 [programs.mainnet]
-solana_presale = "dseD4adu7DMFkPUkVY6nSWSRePq2gAzftGQZYuAxRbg"
+solana_presale = "PwPPdoNVMJiUbQyHLTRif18JdKJiAKopv9y4i78y8M3"
 
 [programs.localnet]
 solana_presale = "dseD4adu7DMFkPUkVY6nSWSRePq2gAzftGQZYuAxRbg"
@@ -16,7 +16,7 @@ solana_presale = "dseD4adu7DMFkPUkVY6nSWSRePq2gAzftGQZYuAxRbg"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "mainnet"
 wallet = "~/.config/solana/id.json"
 
 
