@@ -100,10 +100,12 @@ const PROGRAM_ID = new anchor.web3.PublicKey(
     const data = await program.account.presaleInfo.fetch(presalePda)
     console.log(
         "Program initialized on mainnet. Program ID:",
-        data.pricePerTokenInSol.toString(),
-        data.pricePerTokenInUsdc.toString()
+        // data.pricePerTokenInSol.toString(),
+        // data.pricePerTokenInUsdc.toString()
+        data
+        
         // program
-    );
+      );
 }
 main().catch((error) => {
     console.error("Error in main():", error);
